@@ -1,0 +1,38 @@
+# Local data and checkpoints (download separately; do not commit benchmark images)
+/data/raw/
+/models/
+/backups/
+/CHAT_HANDOFF.md
+/data/processed/synthetic-*
+/reports/synthetic-*
+/reports/*synthetic*
+/scripts/*synthetic*.py
+/scripts/validate_combined_opencv.py
+/reports/phone-*.png
+/reports/final-phone-home.png
+/reports/*window.xml
+/reports/picker-*.png
+
+# Android build output and machine-specific configuration
+/android-app/.gradle/
+/android-app/.idea/
+/android-app/**/build/
+/android-app/local.properties
+/android-app/app/src/main/assets/kolektor_normal_defect_svm.xml
+/android-app/app/src/main/assets/synthetic_fitting_mobilenet.onnx
+
+# Dataset samples used only for local Android instrumentation
+/android-app/app/src/androidTest/assets/neu_test/
+/android-app/app/src/androidTest/assets/neu_test_manifest.csv
+/android-app/app/src/androidTest/assets/ksdd_normal.png
+/android-app/app/src/androidTest/assets/ksdd_defect.png
+
+# Generated Python/runtime files
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Llama models are user-selected local files, never project assets
+*.pte
+tokenizer.model

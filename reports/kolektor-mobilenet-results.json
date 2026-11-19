@@ -1,0 +1,174 @@
+{
+  "model": "ImageNet-initialized MobileNetV3-Small; supervised image-level binary classification",
+  "dataset": "KolektorSDD2 official train/test split; training split further divided 80/20 by image for threshold selection",
+  "seed": 2026,
+  "device": "cuda",
+  "input_size_height_width": [
+    192,
+    512
+  ],
+  "counts": {
+    "training_fit": {
+      "total": 1865,
+      "defective": 197,
+      "normal": 1668
+    },
+    "validation": {
+      "total": 466,
+      "defective": 49,
+      "normal": 417
+    },
+    "official_test": {
+      "total": 1004,
+      "defective": 110,
+      "normal": 894
+    }
+  },
+  "validation_threshold_selected_for_f2": 0.7282978892326355,
+  "validation_metrics": {
+    "threshold": 0.7282978892326355,
+    "accuracy": 0.9742489270386266,
+    "precision_defect": 0.9111111111111111,
+    "recall_defect": 0.8367346938775511,
+    "f1_defect": 0.8723404255319148,
+    "roc_auc": 0.9657906327998825,
+    "average_precision": 0.9033826174785815,
+    "confusion_matrix_labels": [
+      "normal",
+      "defective"
+    ],
+    "confusion_matrix": [
+      [
+        413,
+        4
+      ],
+      [
+        8,
+        41
+      ]
+    ]
+  },
+  "official_test_metrics_at_validation_threshold": {
+    "threshold": 0.7282978892326355,
+    "accuracy": 0.9721115537848606,
+    "precision_defect": 0.8867924528301887,
+    "recall_defect": 0.8545454545454545,
+    "f1_defect": 0.8703703703703703,
+    "roc_auc": 0.9694732560504372,
+    "average_precision": 0.9124259090708633,
+    "confusion_matrix_labels": [
+      "normal",
+      "defective"
+    ],
+    "confusion_matrix": [
+      [
+        882,
+        12
+      ],
+      [
+        16,
+        94
+      ]
+    ]
+  },
+  "epoch_history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.8669006238993627,
+      "validation_loss": 1.3217115310128666,
+      "validation_f2": 0.3712121212121212,
+      "validation_recall": 1.0,
+      "validation_threshold_f2": 0.5714874863624573
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.5739432032242537,
+      "validation_loss": 1.3301783449660043,
+      "validation_f2": 0.3700906344410876,
+      "validation_recall": 1.0,
+      "validation_threshold_f2": 0.0
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.5033185755119887,
+      "validation_loss": 0.4975368275023325,
+      "validation_f2": 0.8401639344262294,
+      "validation_recall": 0.8367346938775511,
+      "validation_threshold_f2": 0.6009610295295715
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.47441937516745547,
+      "validation_loss": 0.47847659668441495,
+      "validation_f2": 0.8713692946058091,
+      "validation_recall": 0.8571428571428571,
+      "validation_threshold_f2": 0.6297135353088379
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.43138170581081275,
+      "validation_loss": 0.4544498330789574,
+      "validation_f2": 0.8368200836820084,
+      "validation_recall": 0.8163265306122449,
+      "validation_threshold_f2": 0.899874746799469
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.3507798769678571,
+      "validation_loss": 0.821813182929299,
+      "validation_f2": 0.8158995815899582,
+      "validation_recall": 0.7959183673469388,
+      "validation_threshold_f2": 0.19398927688598633
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.3997538216871487,
+      "validation_loss": 0.47529753626927795,
+      "validation_f2": 0.8300395256916995,
+      "validation_recall": 0.8571428571428571,
+      "validation_threshold_f2": 0.7226491570472717
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.3166492916943241,
+      "validation_loss": 0.4126382379636744,
+      "validation_f2": 0.8506224066390041,
+      "validation_recall": 0.8367346938775511,
+      "validation_threshold_f2": 0.7282978892326355
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.3479260295190057,
+      "validation_loss": 0.42854387108476377,
+      "validation_f2": 0.8613445378151261,
+      "validation_recall": 0.8367346938775511,
+      "validation_threshold_f2": 0.8700524568557739
+    },
+    {
+      "epoch": 10,
+      "train_loss": 0.3127301662121637,
+      "validation_loss": 0.4863038686275994,
+      "validation_f2": 0.8577405857740587,
+      "validation_recall": 0.8367346938775511,
+      "validation_threshold_f2": 0.9532181024551392
+    },
+    {
+      "epoch": 11,
+      "train_loss": 0.2780210517886177,
+      "validation_loss": 0.4309657114386047,
+      "validation_f2": 0.8467741935483871,
+      "validation_recall": 0.8571428571428571,
+      "validation_threshold_f2": 0.5937438011169434
+    },
+    {
+      "epoch": 12,
+      "train_loss": 0.2595014299847805,
+      "validation_loss": 0.4323338155710646,
+      "validation_f2": 0.847457627118644,
+      "validation_recall": 0.8163265306122449,
+      "validation_threshold_f2": 0.9592208862304688
+    }
+  ],
+  "caution": "Dataset-specific result only; images show one controlled production-item domain. Not validated for NEU-DET steel strips, plumbing fittings, or other parts. CC BY-NC-SA 4.0 dataset license.",
+  "checkpoint": "C:\\Users\\shrid\\.codex\\.chatgpt-projects\\g-p-6ae6c4df2a348191a14b6f46ffa9c3dd\\work\\metal-inspection-mvp\\models\\kolektor_mobilenet_v3_small.pth"
+}

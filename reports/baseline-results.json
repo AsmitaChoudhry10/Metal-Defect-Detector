@@ -1,0 +1,106 @@
+{
+  "model": "HOG + standardized linear SVM",
+  "classes": [
+    "crazing",
+    "inclusion",
+    "patches",
+    "pitted_surface",
+    "rolled-in_scale",
+    "scratches"
+  ],
+  "train_count": 1260,
+  "validation_count": 270,
+  "test_count": 270,
+  "validation_accuracy": 0.7703703703703704,
+  "test_accuracy": 0.8296296296296296,
+  "test_macro_f1": 0.8286945108101422,
+  "test_per_class": {
+    "crazing": {
+      "precision": 0.7924528301886793,
+      "recall": 0.9333333333333333,
+      "f1": 0.8571428571428571,
+      "support": 45.0
+    },
+    "inclusion": {
+      "precision": 0.7954545454545454,
+      "recall": 0.7777777777777778,
+      "f1": 0.7865168539325843,
+      "support": 45.0
+    },
+    "patches": {
+      "precision": 0.7446808510638298,
+      "recall": 0.7777777777777778,
+      "f1": 0.7608695652173914,
+      "support": 45.0
+    },
+    "pitted_surface": {
+      "precision": 0.7317073170731707,
+      "recall": 0.6666666666666666,
+      "f1": 0.6976744186046512,
+      "support": 45.0
+    },
+    "rolled-in_scale": {
+      "precision": 0.9782608695652174,
+      "recall": 1.0,
+      "f1": 0.989010989010989,
+      "support": 45.0
+    },
+    "scratches": {
+      "precision": 0.9487179487179487,
+      "recall": 0.8222222222222222,
+      "f1": 0.8809523809523809,
+      "support": 45.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      42,
+      0,
+      3,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      35,
+      1,
+      8,
+      1,
+      0
+    ],
+    [
+      5,
+      0,
+      35,
+      3,
+      0,
+      2
+    ],
+    [
+      5,
+      4,
+      6,
+      30,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      45,
+      0
+    ],
+    [
+      1,
+      5,
+      2,
+      0,
+      0,
+      37
+    ]
+  ],
+  "warning": "Closed-set defect classification only; dataset has no defect-free samples and does not validate plumbing fitting images."
+}

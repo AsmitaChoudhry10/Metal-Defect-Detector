@@ -1,0 +1,66 @@
+{
+  "model": "OpenCV HOG + linear C-SVC",
+  "class_id_order": [
+    "crazing",
+    "inclusion",
+    "patches",
+    "pitted_surface",
+    "rolled-in_scale",
+    "scratches"
+  ],
+  "train": 1260,
+  "validation_accuracy": 0.7777777777777778,
+  "test_accuracy": 0.8185185185185185,
+  "test_report": {
+    "crazing": {
+      "precision": 0.8,
+      "recall": 0.8888888888888888,
+      "f1-score": 0.8421052631578947,
+      "support": 45.0
+    },
+    "inclusion": {
+      "precision": 0.7608695652173914,
+      "recall": 0.7777777777777778,
+      "f1-score": 0.7692307692307693,
+      "support": 45.0
+    },
+    "patches": {
+      "precision": 0.7142857142857143,
+      "recall": 0.7777777777777778,
+      "f1-score": 0.7446808510638298,
+      "support": 45.0
+    },
+    "pitted_surface": {
+      "precision": 0.7317073170731707,
+      "recall": 0.6666666666666666,
+      "f1-score": 0.6976744186046512,
+      "support": 45.0
+    },
+    "rolled-in_scale": {
+      "precision": 0.9782608695652174,
+      "recall": 1.0,
+      "f1-score": 0.989010989010989,
+      "support": 45.0
+    },
+    "scratches": {
+      "precision": 0.9473684210526315,
+      "recall": 0.8,
+      "f1-score": 0.8674698795180723,
+      "support": 45.0
+    },
+    "accuracy": 0.8185185185185185,
+    "macro avg": {
+      "precision": 0.8220819811990209,
+      "recall": 0.8185185185185184,
+      "f1-score": 0.8183620284310343,
+      "support": 270.0
+    },
+    "weighted avg": {
+      "precision": 0.8220819811990209,
+      "recall": 0.8185185185185185,
+      "f1-score": 0.8183620284310342,
+      "support": 270.0
+    }
+  },
+  "warning": "Closed-set only; no defect-free training examples. Not validated on photographed fitting."
+}
