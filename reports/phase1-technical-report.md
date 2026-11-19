@@ -64,7 +64,7 @@ No model output is a certified acceptance standard. A qualified inspector and th
 - **Logging:** SQLite stores local inspection metadata; images are not stored.
 - **Network:** Android manifest has no `INTERNET` permission; inference code uses local assets.
 - **Phone:** Updated debug APK built, installed in place, and launched on OPPO CPH2757 (Android 16). A held-out `crazing_10.jpg` image returned `crazing` on-device in 904 ms, then a human-entered Medium visual tier appeared in local history. The same result/tier remained after force-stop and relaunch. This one image confirms the flow only; it does not validate the classifier or severity tier.
-- **Build checks:** `testDebugUnitTest` and `assembleDebug` succeeded on 19 November; all three unit-test classes passed. The APK excludes the synthetic fitting model and an unused legacy Kolektor SVM asset.
+- **Build checks:** `testDebugUnitTest` and `assembleDebug` succeeded on 19 November; all 7 unit tests across 3 test classes passed. The 197,829,012-byte APK excludes the synthetic fitting model and an unused legacy Kolektor SVM asset.
 - **Llama resources:** The `.pte` and tokenizer are user-provided phone files and are not included in the repository or APK. Model loading and one local generation were verified separately.
 
 Airplane-mode inference, repeated camera-to-result timing, and sustained FPS/thermal/power behavior have not been measured on this exact build. The no-Internet-permission manifest and local-asset path support offline design, but should not be presented as a full stress benchmark.

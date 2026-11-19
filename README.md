@@ -55,7 +55,7 @@ The build packages the NEU classifier and the separate optional KolektorSDD2 mod
 ## Four submission deliverables
 
 1. **Runnable documented source:** this repository, Android project, scripts, evaluation reports, and build instructions.
-2. **Working mobile application:** debug APK builds and has been installed on the OPPO CPH2757. Final on-device check of the newly added operator-severity/history flow is tracked in [`reports/deliverables-checklist.md`](reports/deliverables-checklist.md).
+2. **Working mobile application:** debug APK builds and has been installed on the OPPO CPH2757. A held-out `crazing_10.jpg` sample returned `crazing` in 904 ms; the operator-entered Medium tier appeared in history and persisted after app restart. This single flow check does not validate severity or broader model performance.
 3. **Demo video:** use a real NEU-DET sample and show analysis, fixed checklist, optional human-entered severity, and saved history. Never use synthetic data in the challenge video. See [`reports/first-round-demo-run-sheet.md`](reports/first-round-demo-run-sheet.md).
 4. **Technical report:** [`reports/phase1-technical-report.md`](reports/phase1-technical-report.md).
 
