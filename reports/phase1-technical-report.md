@@ -6,7 +6,7 @@
 
 ## 1. Summary
 
-The Android app runs a classical OpenCV HOG/SVM image classifier locally, gives an immediate class-specific recheck checklist, and stores inspection metadata in SQLite on the phone. It has been installed on the OPPO and has no Internet permission. A separate optional Llama 3.2 1B Instruct model runs through ExecuTorch on the phone and receives the predicted label and checklist as text only. Its one verified response took 86.35 seconds, so the fixed checklist is the practical immediate operator guidance.
+The Android app runs a classical OpenCV HOG/SVM image classifier locally, gives an immediate class-specific recheck checklist, and stores inspection metadata in SQLite on the phone. It has been installed on the OPPO and has no Internet permission. The challenge-required Llama 3.2 1B Instruct component runs through ExecuTorch locally and receives the predicted label and checklist as text only. Its one verified response took 86.35 seconds, so the fixed checklist is the practical immediate operator guidance. The matching model and tokenizer must be selected on the phone; they are not bundled in the APK.
 
 The primary model classifies six NEU-DET steel-surface defect labels. It always returns one of those labels: it cannot recognize a good part or reject an unrelated image. The app does not automatically grade severity or provide dependable defect localization. The operator can record a team-defined visual Low/Medium/High tier, which is clearly separate from AI output and physical acceptance criteria.
 
@@ -16,7 +16,7 @@ The primary model classifies six NEU-DET steel-surface defect labels. It always 
 |---|---|---|
 | Detect and classify surface defects | Partial | Six NEU-DET labels; 83.70% accuracy and 0.837 macro F1 on a 270-image held-out test set. No normal class, broad anomaly rejection, or validation on plumbing fittings. |
 | Classify severity | Manual triage implemented; AI severity incomplete | Operator selects a team-defined visual tier after reviewing the image. NEU-DET provides neither severity labels nor physical measurements; no AI severity accuracy can be claimed. |
-| Alert with actionable guidance | Fixed class-specific checklist implemented; Llama optional | Checklist appears immediately. One Llama response succeeded locally in 86.35 seconds; it is an experimental paraphrase, not image analysis or a real-time alert. |
+| Alert with actionable guidance | Fixed class-specific checklist and Llama + ExecuTorch text explanation implemented | Checklist appears immediately. One Llama response succeeded locally in 86.35 seconds; generated wording is slow, text-only, and not image analysis or a real-time alert. |
 | Log inspections | Implemented | Local SQLite history records predicted class, timestamp, elapsed analysis time, and optional operator-entered tier. Images are not retained. |
 | Run at the edge without cloud | Implemented on the selected phone; sustained real-time performance unproven | Model inference is local and the app declares no Internet permission. A sustained FPS, power, and thermal benchmark has not been recorded. |
 | Locate defects | Unavailable as a dependable app output | A non-integrated NEU box-localization baseline reached 54.6% recall at IoU 0.3 on 634 held-out boxes. It is not suitable for inspection decisions. |
@@ -53,7 +53,11 @@ NEU-DET cannot support severity model training because it has no severity labels
 
 The fixed per-class checklist is displayed immediately and recommends visual rechecks, such as retaking a focused image or having an inspector compare the finding with the applicable product specification. These are prompts, not factory standards or acceptance rules.
 
-The optional Llama 3.2 1B Instruct component uses ExecuTorch locally. It receives only a predicted text label and the fixed checklist; it cannot inspect pixels, confirm a defect, identify a location, assign severity, or decide pass/fail. A prompt overflow was fixed and one generation completed with a 70-token prompt and 9 generated tokens in 86.35 seconds (73.538 seconds to first token; 12.812 seconds generation). Report this as a successful local generation, not real-time performance. If the class is wrong, Llama's advice may also be wrong.
+The Llama 3.2 1B Instruct component uses ExecuTorch locally. It receives only a predicted text label and the fixed checklist; it cannot inspect pixels, confirm a defect, identify a location, assign severity, or decide pass/fail. A prompt overflow was fixed and one generation completed with a 70-token prompt and 9 generated tokens in 86.35 seconds (73.538 seconds to first token; 12.812 seconds generation). Report this as a successful local generation, not real-time performance. If the class is wrong, Llama's advice may also be wrong.
+
+### Video references
+
+Reviewed as educational references: [Bharat Skills / NIMI visual inspection](https://www.youtube.com/watch?v=ni859sCEod0) and [pipe fitting inspection workflow](https://www.youtube.com/watch?v=HXdqEeXri0E). Their available descriptions do not provide frame-level defect labels or severity annotations. They are not used to train or score the models.
 
 No model output is a certified acceptance standard. A qualified inspector and the applicable drawing, gauge, and inspection procedure must decide the disposition of a real part.
 

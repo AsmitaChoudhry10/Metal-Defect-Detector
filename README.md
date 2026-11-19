@@ -10,7 +10,7 @@ This is a research demonstration, not a certified quality-control instrument. It
 |---|---|---|
 | Detect/classify defects | Partial prototype | Six NEU-DET classes; 83.70% accuracy and 0.837 macro F1 on the untouched 270-image test split. No normal class or general out-of-domain rejection. NEU-DET is flat steel surface imagery, not plumbing fittings. |
 | Classify severity | Manual visual triage only | The operator may record Low/Medium/High with class-specific visual cues. No AI severity model is available. NEU-DET has no severity labels or physical measurements. |
-| Alert with actionable guidance | Implemented as fixed checklist; Llama optional/experimental | Class-specific recheck steps appear immediately. One local Llama generation completed in 86.35 seconds, so it is not a real-time alert. Llama receives text labels/checklist only; it never examines pixels. Neither output is an acceptance standard. |
+| Alert with actionable guidance | Fixed checklist implemented; Llama + ExecuTorch integrated for text-only explanation | Class-specific recheck steps appear immediately. One local Llama generation completed in 86.35 seconds, so generated wording is too slow for a real-time alert. Llama receives the predicted class and checklist as text; it never examines pixels. Neither output is an acceptance standard. |
 | Log inspections | Implemented | SQLite history on the phone stores predicted label, timestamp, processing time, and optional operator tier. Images are not stored. |
 | Run at the edge/offline | Implemented for tested phone flow | OpenCV inference and Llama run locally. The manifest has no `INTERNET` permission. A sustained FPS/power benchmark is not available; Llama is slow. |
 | Defect localization | Not integrated/reliable | The NEU bounding-box experiment reached 54.6% recall at IoU 0.3 on 634 held-out boxes. Do not use it as a dependable location output. |
@@ -35,6 +35,13 @@ The official dataset source is [NEU-DET](https://faculty.neu.edu.cn/songkc/en/zd
 
 Details and source evaluation reports are under [`reports/`](reports/). The severity policy is in [`reports/severity-rubric.md`](reports/severity-rubric.md).
 
+### Video references reviewed
+
+- [Bharat Skills / NIMI: visual inspection for dents and surface finish](https://www.youtube.com/watch?v=ni859sCEod0), listed on the [official fitter-training page](https://bharatskills.gov.in/content/nimi-videos/fitter/).
+- [Pipe fitting inspection: surface, dimensions, welds, and corrosion](https://www.youtube.com/watch?v=HXdqEeXri0E).
+
+These are instructional videos, not labeled datasets. Their available descriptions do not provide frame-level defect labels or severity grades. Use them as visual references only; do not count extracted frames as training or evaluation data without permission, verified labels, and a split grouped by source video/part.
+
 ## Build and install
 
 Requirements: Android Studio with its bundled JDK, Android SDK/platform tools, and a Windows PowerShell terminal. Open [`android-app/`](android-app/) in Android Studio and build the `debug` variant, or run:
@@ -50,7 +57,7 @@ The APK is generated at `android-app/app/build/outputs/apk/debug/app-debug.apk`.
 & "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install -r app\build\outputs\apk\debug\app-debug.apk
 ```
 
-The build packages the NEU classifier and the separate optional KolektorSDD2 model. The synthetic fitting flow and unused legacy Kolektor SVM asset are excluded from the APK. The optional Llama panel requires the matching `.pte` model and `tokenizer.model` to be selected on the device; those large licensed/runtime files are not included in this source tree.
+The build packages the NEU classifier and the separate experimental KolektorSDD2 model. The synthetic fitting flow and unused legacy Kolektor SVM asset are excluded from the APK. To use the challenge-required Llama + ExecuTorch text explanation, select the matching `.pte` model and `tokenizer.model` on the device; licensed model/runtime files are not included in this source tree. The Llama response is text-only and slow; the fixed checklist remains the immediate operator guidance.
 
 ## Four submission deliverables
 

@@ -17,21 +17,35 @@ import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,6 +56,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -56,6 +75,10 @@ import org.pytorch.executorch.extension.llm.LlmModule
 import org.pytorch.executorch.extension.llm.LlmModuleConfig
 import java.io.File
 import kotlinx.coroutines.withContext
+import org.bharatai.ps5.metalinspection.ui.theme.DeepNavy
+import org.bharatai.ps5.metalinspection.ui.theme.HighSeverity
+import org.bharatai.ps5.metalinspection.ui.theme.LowSeverity
+import org.bharatai.ps5.metalinspection.ui.theme.MediumSeverity
 import org.bharatai.ps5.metalinspection.ui.theme.MetalInspectionAssistantTheme
 
 // Synthetic imagery is not permitted for the competition demo. Keep its research
@@ -150,38 +173,127 @@ private fun InspectionHomeScreen() {
         }
     }
 
-    Scaffold { innerPadding ->
+    fun takePhoto() {
+        val photo = File.createTempFile("inspection_", ".jpg", context.cacheDir)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photo)
+        cameraUri = uri
+        cameraCapture.launch(uri)
+    }
+
+    fun chooseSavedImage() {
+        imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
+
+    fun analyzeImage() {
+        val image = previewBitmap ?: return
+        if (analyzing) return
+        analyzing = true
+        status = "Analyzing on this device…"
+        prediction = null
+        currentInspectionId = null
+        operatorSeverity = null
+        val startedAt = SystemClock.elapsedRealtime()
+        scope.launch {
+            val result = withContext(Dispatchers.Default) {
+                runCatching { OpenCvDefectClassifier.predict(context, image) }
+            }
+            analyzing = false
+            result.onSuccess { detectedLabel ->
+                val label = detectedLabel.replace('_', ' ').replace('-', ' ')
+                prediction = label
+                status = "Analysis complete (on-device)."
+                val record = InspectionRecord(
+                    id = 0,
+                    label = label,
+                    inspectedAt = System.currentTimeMillis(),
+                    durationMs = SystemClock.elapsedRealtime() - startedAt,
+                    severity = "unreviewed",
+                )
+                currentInspectionId = withContext(Dispatchers.IO) {
+                    InspectionHistoryStore(context).use { store -> store.add(record) }
+                }
+                history = withContext(Dispatchers.IO) {
+                    InspectionHistoryStore(context).use { store -> store.recent() }
+                }
+            }.onFailure {
+                status = "Could not analyze image: ${it.message ?: "OpenCV/model error"}"
+            }
+        }
+    }
+
+    Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(
-                text = "Metal Inspection Assistant",
-                style = MaterialTheme.typography.headlineMedium,
-            )
-            Text(
-                text = "On-device visual quality inspection",
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Text(
-                text = "Real-data research demo using NEU-DET steel-surface images. Held-out six-class accuracy was 83.7% on 270 images. The classifier always chooses a defect class: it cannot identify good or unrelated images, estimate severity, or locate a defect. Predictions and checklists are advisory and are not acceptance decisions.",
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(26.dp),
+                colors = CardDefaults.cardColors(containerColor = DeepNavy),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Surface(
+                        modifier = Modifier.size(52.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color.White.copy(alpha = 0.13f),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("MI", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("METAL QUALITY CONTROL", style = MaterialTheme.typography.labelMedium, color = Color(0xFFB9C9E2))
+                        Text("Inspection assistant", style = MaterialTheme.typography.headlineMedium, color = Color.White)
+                        Text("On-device visual inspection", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFD0D9E6))
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Surface(shape = RoundedCornerShape(50), color = Color(0xFF1E766D)) {
+                        Text("ON-DEVICE", modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp), color = Color.White, style = MaterialTheme.typography.labelMedium)
+                    }
+                    Text("Research prototype · not an acceptance decision", color = Color(0xFFD0D9E6), style = MaterialTheme.typography.bodySmall)
+                }
+            }
 
-            Card(modifier = Modifier.fillMaxWidth()) {
+            SectionHeading(title = "New inspection", eyebrow = "01  ·  CAPTURE")
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            ) {
                 val bitmap = previewBitmap
                 if (bitmap == null) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(220.dp),
+                            .height(220.dp)
+                            .padding(10.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("Selected image preview will appear here")
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                                Box(modifier = Modifier.size(52.dp), contentAlignment = Alignment.Center) {
+                                    InspectionGlyph(InspectionGlyphKind.Gallery, Modifier.size(25.dp), MaterialTheme.colorScheme.onPrimaryContainer)
+                                }
+                            }
+                            Text("Add a surface image", style = MaterialTheme.typography.titleMedium)
+                            Text("Choose a photo or take one with your camera", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 } else {
                     Image(
@@ -189,13 +301,55 @@ private fun InspectionHomeScreen() {
                         contentDescription = "Selected metal surface image",
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 320.dp),
+                            .heightIn(max = 340.dp)
+                            .padding(10.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)),
                         contentScale = ContentScale.Fit,
                     )
                 }
             }
 
-            Text(text = status, style = MaterialTheme.typography.bodyMedium)
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = if (previewBitmap != null) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                    horizontalArrangement = Arrangement.spacedBy(9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    InspectionGlyph(
+                        if (status.startsWith("Analysis complete")) InspectionGlyphKind.Check else InspectionGlyphKind.Scan,
+                        Modifier.size(20.dp),
+                        if (status.startsWith("Analysis complete")) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(text = status, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                }
+            }
+
+            Button(
+                onClick = ::analyzeImage,
+                enabled = previewBitmap != null && !analyzing,
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                InspectionGlyph(InspectionGlyphKind.Scan, Modifier.size(19.dp), MaterialTheme.colorScheme.onPrimary)
+                Spacer(Modifier.width(9.dp))
+                Text(if (analyzing) "Analyzing…" else "Analyze image", style = MaterialTheme.typography.labelLarge)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = ::takePhoto, modifier = Modifier.weight(1f).height(50.dp), shape = RoundedCornerShape(15.dp)) {
+                    InspectionGlyph(InspectionGlyphKind.Camera, Modifier.size(18.dp), MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(7.dp))
+                    Text("Take photo", style = MaterialTheme.typography.labelLarge)
+                }
+                OutlinedButton(onClick = ::chooseSavedImage, modifier = Modifier.weight(1f).height(50.dp), shape = RoundedCornerShape(15.dp)) {
+                    InspectionGlyph(InspectionGlyphKind.Gallery, Modifier.size(18.dp), MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(7.dp))
+                    Text("Gallery", style = MaterialTheme.typography.labelLarge)
+                }
+            }
 
             if (SHOW_SYNTHETIC_RESEARCH_DEMO) {
                 Button(
@@ -280,39 +434,57 @@ private fun InspectionHomeScreen() {
                         history = updatedHistory
                     }
                 }
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Experimental class prediction", style = MaterialTheme.typography.titleMedium)
-                        Text(result, style = MaterialTheme.typography.headlineSmall)
-                        Text("NEU-DET held-out accuracy: 83.7% (270 images). This score applies only to the six dataset classes and is not validated for production or plumbing parts.", style = MaterialTheme.typography.bodySmall)
-                        Text("The classifier always chooses one of six labels and has no calibrated confidence score. It cannot identify a defect-free part, reject an unrelated image, grade severity, or locate a defect. Treat every prediction as uncertain and require inspector review.", style = MaterialTheme.typography.bodySmall)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Suggested manual rechecks (not acceptance criteria)", style = MaterialTheme.typography.titleSmall)
-                        checklistFor(result).forEach { item -> Text("• $item") }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Operator visual triage — selected by a person, not predicted by AI", style = MaterialTheme.typography.titleSmall)
-                        Text("Choose the closest visible description. These team-defined tiers do not measure depth, strength, or product acceptance.", style = MaterialTheme.typography.bodySmall)
-                        val rubric = severityRubricFor(result)
-                        Text("Low: ${rubric.low}", style = MaterialTheme.typography.bodySmall)
-                        Button(onClick = { saveOperatorSeverity("Low") }, modifier = Modifier.fillMaxWidth()) { Text("Record Low") }
-                        Text("Medium: ${rubric.medium}", style = MaterialTheme.typography.bodySmall)
-                        Button(onClick = { saveOperatorSeverity("Medium") }, modifier = Modifier.fillMaxWidth()) { Text("Record Medium") }
-                        Text("High: ${rubric.high}", style = MaterialTheme.typography.bodySmall)
-                        Button(onClick = { saveOperatorSeverity("High") }, modifier = Modifier.fillMaxWidth()) { Text("Record High") }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                ) {
+                    Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                        SectionHeading(title = "Inspection result", eyebrow = "02  ·  MODEL FINDING")
+                        Text(result.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+                        Surface(shape = RoundedCornerShape(13.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                            Text(
+                                "Experimental six-class model · 83.7% held-out accuracy on 270 NEU-DET images. Not validated for production or plumbing parts.",
+                                modifier = Modifier.padding(12.dp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         Text(
-                            operatorSeverity?.let { "Recorded operator visual tier: $it" }
-                                ?: "Severity not recorded. An operator must choose a visual tier if appropriate.",
+                            "The model always chooses one of six defect labels. It cannot confirm a defect, identify a good part, reject unrelated images, grade severity, or locate a defect. Treat the result as uncertain and ask an inspector to review it.",
                             style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
+                        Text("Suggested rechecks", style = MaterialTheme.typography.titleMedium)
+                        checklistFor(result).forEach { item ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.Top) {
+                                Text("•", color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.titleMedium)
+                                Text(item, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
+                        Text("Operator visual triage", style = MaterialTheme.typography.titleMedium)
+                        Text("Choose a visual tier yourself. This is not an AI severity prediction or acceptance decision.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        val rubric = severityRubricFor(result)
+                        SeverityChoice("Low", rubric.low, operatorSeverity == "Low", LowSeverity) { saveOperatorSeverity("Low") }
+                        SeverityChoice("Medium", rubric.medium, operatorSeverity == "Medium", MediumSeverity) { saveOperatorSeverity("Medium") }
+                        SeverityChoice("High", rubric.high, operatorSeverity == "High", HighSeverity) { saveOperatorSeverity("High") }
+                        Text(
+                            operatorSeverity?.let { "Recorded: $it visual tier" } ?: "No visual tier recorded",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
                 LlamaAssistantPanel(context, result)
 
                 Spacer(modifier = Modifier.height(8.dp))
-                Button(
+                FilledTonalButton(
                     enabled = previewBitmap != null && !checkingKolektor,
                     onClick = {
-                        val image = previewBitmap ?: return@Button
+                        val image = previewBitmap ?: return@FilledTonalButton
                         checkingKolektor = true
                         val startedAt = SystemClock.elapsedRealtime()
                         scope.launch {
@@ -345,7 +517,8 @@ private fun InspectionHomeScreen() {
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    shape = RoundedCornerShape(15.dp),
                 ) {
                     Text(if (checkingKolektor) "Checking…" else "Run experimental normal/defect check")
                 }
@@ -354,8 +527,8 @@ private fun InspectionHomeScreen() {
                     style = MaterialTheme.typography.bodySmall,
                 )
                 kolektorScore?.let { score ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text("Experimental normal/defect signal", style = MaterialTheme.typography.titleMedium)
                             Text(
                                 "${if (score >= KolektorBinaryDetector.defectThreshold) "Defect-like" else "Normal-like"} — model score ${(score * 100).toInt()}% (threshold ${(KolektorBinaryDetector.defectThreshold * 100).toInt()}%).",
@@ -367,96 +540,150 @@ private fun InspectionHomeScreen() {
                 }
             }
 
-            Button(
-                enabled = previewBitmap != null && !analyzing,
-                onClick = {
-                    val image = previewBitmap ?: return@Button
-                    analyzing = true
-                    status = "Analyzing on this device…"
-                    prediction = null
-                    currentInspectionId = null
-                    operatorSeverity = null
-                    val startedAt = SystemClock.elapsedRealtime()
-                    scope.launch {
-                        val result = withContext(Dispatchers.Default) {
-                            runCatching { OpenCvDefectClassifier.predict(context, image) }
-                        }
-                        analyzing = false
-                        result.onSuccess {
-                            val label = it.replace('_', ' ').replace('-', ' ')
-                            prediction = label
-                            status = "Analysis complete (on-device)."
-                            val record = InspectionRecord(
-                                id = 0,
-                                label = label,
-                                inspectedAt = System.currentTimeMillis(),
-                                durationMs = SystemClock.elapsedRealtime() - startedAt,
-                                severity = "unreviewed",
-                            )
-                            val savedId = withContext(Dispatchers.IO) {
-                                InspectionHistoryStore(context).use { store -> store.add(record) }
-                            }
-                            currentInspectionId = savedId
-                            history = withContext(Dispatchers.IO) {
-                                InspectionHistoryStore(context).use { store -> store.recent() }
-                            }
-                        }.onFailure {
-                            status = "Could not analyze image: ${it.message ?: "OpenCV/model error"}"
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(if (analyzing) "Analyzing…" else "Analyze image")
-            }
-
-            Button(
-                onClick = {
-                    val photo = File.createTempFile("inspection_", ".jpg", context.cacheDir)
-                    val uri = FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        photo,
-                    )
-                    cameraUri = uri
-                    cameraCapture.launch(uri)
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Take a photo")
-            }
-
-            Button(
-                onClick = {
-                    imagePicker.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Choose a saved image")
-            }
-
             if (competitionHistory.isNotEmpty()) {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Recent inspections (saved on this phone)", style = MaterialTheme.typography.titleMedium)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                ) {
+                    Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SectionHeading("Recent inspections", "LOCAL HISTORY")
                         competitionHistory.forEach { record ->
                             val time = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
                                 .format(Date(record.inspectedAt))
                             val severityNote = record.severity.takeUnless { it == "unreviewed" }
                                 ?.let { " • severity $it" }.orEmpty()
-                            Text("${record.label} • $time • ${record.durationMs} ms$severityNote")
+                            Surface(shape = RoundedCornerShape(13.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text(record.label, style = MaterialTheme.typography.labelLarge)
+                                        Text("$time$severityNote", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Text("${record.durationMs} ms", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                                }
+                            }
                         }
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Recommendations are general prompts, not verified inspection standards. The classifier was trained on flat steel samples, does not detect defect-free parts, and may misclassify other objects. A qualified inspector must make the final decision.",
-                style = MaterialTheme.typography.bodySmall.copy(lineHeight = 20.sp),
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.tertiaryContainer,
+            ) {
+                Text(
+                    text = "Research prototype. The model may misclassify images and cannot recognize good parts. Recommendations are prompts, not inspection standards; have a qualified inspector make the final decision.",
+                    modifier = Modifier.padding(14.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionHeading(title: String, eyebrow: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(eyebrow, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+private enum class InspectionGlyphKind { Scan, Camera, Gallery, Check }
+
+/** Small, consistent line icons drawn locally so the app needs no added icon library. */
+@Composable
+private fun InspectionGlyph(kind: InspectionGlyphKind, modifier: Modifier, tint: Color) {
+    Canvas(modifier) {
+        val side = size.minDimension
+        val inset = side * 0.12f
+        val right = size.width - inset
+        val bottom = size.height - inset
+        val stroke = Stroke(width = side * 0.085f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        when (kind) {
+            InspectionGlyphKind.Scan -> {
+                val corner = side * 0.28f
+                drawLine(tint, androidx.compose.ui.geometry.Offset(inset, inset + corner), androidx.compose.ui.geometry.Offset(inset, inset), stroke.width, StrokeCap.Round)
+                drawLine(tint, androidx.compose.ui.geometry.Offset(inset, inset), androidx.compose.ui.geometry.Offset(inset + corner, inset), stroke.width, StrokeCap.Round)
+                drawLine(tint, androidx.compose.ui.geometry.Offset(right - corner, inset), androidx.compose.ui.geometry.Offset(right, inset), stroke.width, StrokeCap.Round)
+                drawLine(tint, androidx.compose.ui.geometry.Offset(right, inset), androidx.compose.ui.geometry.Offset(right, inset + corner), stroke.width, StrokeCap.Round)
+                drawLine(tint, androidx.compose.ui.geometry.Offset(inset, bottom - corner), androidx.compose.ui.geometry.Offset(inset, bottom), stroke.width, StrokeCap.Round)
+                drawLine(tint, androidx.compose.ui.geometry.Offset(inset, bottom), androidx.compose.ui.geometry.Offset(inset + corner, bottom), stroke.width, StrokeCap.Round)
+                drawLine(tint, androidx.compose.ui.geometry.Offset(right - corner, bottom), androidx.compose.ui.geometry.Offset(right, bottom), stroke.width, StrokeCap.Round)
+                drawLine(tint, androidx.compose.ui.geometry.Offset(right, bottom), androidx.compose.ui.geometry.Offset(right, bottom - corner), stroke.width, StrokeCap.Round)
+                drawCircle(tint, radius = side * 0.12f, center = androidx.compose.ui.geometry.Offset(size.width / 2, size.height / 2), style = stroke)
+            }
+            InspectionGlyphKind.Camera -> {
+                val body = Path().apply {
+                    moveTo(inset, side * 0.34f); lineTo(side * 0.36f, side * 0.34f)
+                    lineTo(side * 0.45f, side * 0.22f); lineTo(side * 0.67f, side * 0.22f)
+                    lineTo(side * 0.76f, side * 0.34f); lineTo(right, side * 0.34f)
+                    lineTo(right, bottom); lineTo(inset, bottom); close()
+                }
+                drawPath(body, tint, style = stroke)
+                drawCircle(tint, radius = side * 0.18f, center = androidx.compose.ui.geometry.Offset(size.width / 2, side * 0.63f), style = stroke)
+            }
+            InspectionGlyphKind.Gallery -> {
+                drawRoundRect(tint, androidx.compose.ui.geometry.Offset(inset, inset), androidx.compose.ui.geometry.Size(side * 0.72f, side * 0.72f), androidx.compose.ui.geometry.CornerRadius(side * 0.08f), style = stroke)
+                drawCircle(tint, radius = side * 0.065f, center = androidx.compose.ui.geometry.Offset(side * 0.34f, side * 0.34f))
+                val hills = Path().apply {
+                    moveTo(side * 0.18f, side * 0.78f); lineTo(side * 0.43f, side * 0.52f)
+                    lineTo(side * 0.57f, side * 0.66f); lineTo(side * 0.68f, side * 0.55f)
+                    lineTo(side * 0.86f, side * 0.74f)
+                }
+                drawPath(hills, tint, style = stroke)
+            }
+            InspectionGlyphKind.Check -> {
+                drawCircle(tint, radius = side * 0.39f, center = androidx.compose.ui.geometry.Offset(size.width / 2, size.height / 2), style = stroke)
+                val check = Path().apply {
+                    moveTo(side * 0.28f, side * 0.51f); lineTo(side * 0.44f, side * 0.66f); lineTo(side * 0.73f, side * 0.35f)
+                }
+                drawPath(check, tint, style = stroke)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SeverityChoice(
+    title: String,
+    cue: String,
+    selected: Boolean,
+    accent: Color,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(15.dp)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = if (selected) 1.5.dp else 1.dp,
+                color = if (selected) accent else MaterialTheme.colorScheme.outline.copy(alpha = 0.65f),
+                shape = shape,
             )
+            .clickable(onClick = onClick),
+        shape = shape,
+        color = if (selected) accent.copy(alpha = 0.09f) else MaterialTheme.colorScheme.surface,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp),
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(modifier = Modifier.size(10.dp), shape = RoundedCornerShape(50), color = accent) {}
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = MaterialTheme.typography.labelLarge, color = accent)
+                Text(cue, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (selected) Text("Selected", style = MaterialTheme.typography.labelMedium, color = accent)
         }
     }
 }
@@ -503,18 +730,23 @@ private fun LlamaAssistantPanel(context: Context, defectLabel: String?) {
         }
     }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Optional on-device Llama recommendation (experimental)", style = MaterialTheme.typography.titleMedium)
-            Text("The fixed checklist above is the inspection guidance. Llama receives only the predicted class and those checklist steps as text; it cannot inspect the image, confirm a defect, assign severity, or locate it. Its wording may be wrong.", style = MaterialTheme.typography.bodySmall)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SectionHeading("Llama recommendation", "OPTIONAL TEXT ASSISTANT · ON-DEVICE")
+            Text("The checklist above is the immediate guidance. Llama receives the predicted class and checklist as text; it cannot inspect the image or assign severity. Its reply may be wrong.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(message, style = MaterialTheme.typography.bodySmall)
-            Button(enabled = !loadingModel && module == null, onClick = { modelPicker.launch(arrayOf("application/octet-stream", "*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("Choose Llama .pte file") }
-            Button(enabled = !loadingModel && module == null, onClick = { tokenizerPicker.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("Choose tokenizer.model") }
-            Button(
+            OutlinedButton(enabled = !loadingModel && module == null, onClick = { modelPicker.launch(arrayOf("application/octet-stream", "*/*")) }, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp)) { Text("Choose Llama model") }
+            OutlinedButton(enabled = !loadingModel && module == null, onClick = { tokenizerPicker.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp)) { Text("Choose tokenizer") }
+            FilledTonalButton(
                 enabled = modelPath != null && tokenizerPath != null && module == null && !loadingModel,
                 onClick = {
-                    val mp = modelPath ?: return@Button
-                    val tp = tokenizerPath ?: return@Button
+                    val mp = modelPath ?: return@FilledTonalButton
+                    val tp = tokenizerPath ?: return@FilledTonalButton
                     loadingModel = true
                     message = "Verifying the complete model and tokenizer…"
                     scope.launch {
@@ -535,7 +767,7 @@ private fun LlamaAssistantPanel(context: Context, defectLabel: String?) {
                         result.onSuccess { module = it; message = "Llama loaded locally and ready." }
                             .onFailure { message = "Model was not loaded: ${it.message ?: "file verification failed"}. Choose the full original model and matching tokenizer." }
                     }
-                }, modifier = Modifier.fillMaxWidth(),
+                }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(15.dp),
             ) { Text(if (loadingModel) "Verifying / loading Llama…" else "Load Llama") }
             Button(
                 enabled = module != null && defectLabel != null,
@@ -567,7 +799,7 @@ private fun LlamaAssistantPanel(context: Context, defectLabel: String?) {
                             }
                         }
                     }
-                }, modifier = Modifier.fillMaxWidth(),
+                }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(15.dp),
             ) { Text("Generate Llama recommendation") }
             val displayAnswer = cleanLlamaOutput(answer)
             if (displayAnswer.isNotBlank()) {

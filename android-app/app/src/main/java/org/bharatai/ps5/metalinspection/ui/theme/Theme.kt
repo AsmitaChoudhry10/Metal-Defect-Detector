@@ -1,58 +1,92 @@
 package org.bharatai.ps5.metalinspection.ui.theme
 
-import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Shapes
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.toArgb
+import androidx.core.view.WindowCompat
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.runtime.SideEffect
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+private val LightColors = lightColorScheme(
+    primary = BrandBlue,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFDCE7FF),
+    onPrimaryContainer = Color(0xFF142E64),
+    secondary = Teal,
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFD8F1ED),
+    onSecondaryContainer = Color(0xFF123F3A),
+    tertiary = Amber,
+    onTertiary = Color.White,
+    background = LightCanvas,
+    onBackground = LightText,
+    surface = LightSurface,
+    onSurface = LightText,
+    surfaceVariant = LightSurfaceVariant,
+    onSurfaceVariant = LightTextSecondary,
+    outline = LightOutline,
+    error = Color(0xFFB42332),
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+private val DarkColors = darkColorScheme(
+    primary = Color(0xFFA9C2FF),
+    onPrimary = Color(0xFF102C68),
+    primaryContainer = Color(0xFF254587),
+    onPrimaryContainer = Color(0xFFE0E9FF),
+    secondary = Color(0xFF84D9CF),
+    onSecondary = Color(0xFF003731),
+    secondaryContainer = Color(0xFF15534C),
+    onSecondaryContainer = Color(0xFFB8F2EA),
+    tertiary = Color(0xFFFFB77A),
+    onTertiary = Color(0xFF4A2500),
+    background = DarkCanvas,
+    onBackground = DarkText,
+    surface = DarkSurface,
+    onSurface = DarkText,
+    surfaceVariant = DarkSurfaceVariant,
+    onSurfaceVariant = DarkTextSecondary,
+    outline = DarkOutline,
+    error = Color(0xFFFFB4AB),
+)
 
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+private val AppShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(18.dp),
+    large = RoundedCornerShape(24.dp),
+    extraLarge = RoundedCornerShape(30.dp),
 )
 
 @Composable
 fun MetalInspectionAssistantTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    val colors = if (darkTheme) DarkColors else LightColors
+    val context = LocalContext.current
+    SideEffect {
+        val activity = context as? ComponentActivity ?: return@SideEffect
+        activity.window.statusBarColor = colors.background.toArgb()
+        activity.window.navigationBarColor = colors.background.toArgb()
+        WindowCompat.getInsetsController(activity.window, activity.window.decorView).apply {
+            isAppearanceLightStatusBars = colors.background.luminance() > 0.5f
+            isAppearanceLightNavigationBars = colors.background.luminance() > 0.5f
         }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
     }
 
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = colors,
         typography = Typography,
-        content = content
+        shapes = AppShapes,
+        content = content,
     )
 }
