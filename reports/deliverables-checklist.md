@@ -2,7 +2,7 @@
 
 | Deliverable | Project artifact | Status on 19 Nov 2026 |
 |---|---|---|
-| Runnable, documented source code | Repository root, `android-app/`, `scripts/`, and `reports/` | Prepared for publication. Clean ignore rules exclude raw datasets, synthetic metrics, private Llama files, backups, and build output. Local Git repository initialized; the manual video can be added in a later commit. |
+| Runnable, documented source code | Repository root, `android-app/`, `scripts/`, and `reports/` | **Committed locally** (`67676ea`). The cleaned repository is linked to the team's existing private GitHub repo; the first push is pending because the outbound GitHub operation was blocked by the session's automatic approval usage limit. The manual video can be added in a later commit. |
 | Working application on chosen target device | `android-app/app/build/outputs/apk/debug/app-debug.apk` | **Verified.** Debug tests and build succeeded; APK installed on OPPO CPH2757 (Android 16). The app classified held-out `crazing_10.jpg` on-device in 904 ms. An operator-selected Medium visual tier appeared in history and remained after force-stop/relaunch. |
 | Demo video: detection, alert, logging | `reports/metal-inspection-demo.mp4` | **Team-recorded manually.** Use only the held-out NEU-DET image. Show the predicted class, immediate checklist, operator severity choice clearly labeled as manual, and local history. Keep synthetic data out of the challenge video. |
 | Technical report | `reports/phase1-technical-report.md` | **Prepared.** Includes exact NEU-DET held-out metrics, mobile architecture and checks, Llama timing, severity rubric, and limitations. |

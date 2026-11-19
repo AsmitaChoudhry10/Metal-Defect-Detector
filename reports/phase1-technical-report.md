@@ -71,7 +71,7 @@ Airplane-mode inference, repeated camera-to-result timing, and sustained FPS/the
 
 ## 6. Four submission deliverables
 
-1. **Runnable documented source:** Android project, training/evaluation scripts, reports, and root build instructions; prepared as a clean local Git repository. GitHub publishing is pending repository visibility/account access.
+1. **Runnable documented source:** Android project, permitted training/evaluation scripts, reports, and root build instructions; committed locally. The existing private GitHub repository is identified, but the first push remains pending because the session's automatic approval gate blocked outbound publishing.
 2. **Working mobile application:** debug APK builds and was installed on the OPPO. APK path: `android-app/app/build/outputs/apk/debug/app-debug.apk`.
 3. **Demo video:** record the primary flow using a real NEU-DET sample; show the label, fixed checklist, optional operator tier, and local history. Do not use synthetic images or synthetic metrics. See [`first-round-demo-run-sheet.md`](first-round-demo-run-sheet.md).
 4. **Technical report:** this document reports the dataset, held-out results, device evidence, architecture, limitations, and severity plan.
