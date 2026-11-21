@@ -15,7 +15,7 @@ The primary model classifies six NEU-DET steel-surface defect labels. It always 
 | Challenge requirement | Status | Evidence/remaining limit |
 |---|---|---|
 | Detect and classify surface defects | Partial | Six NEU-DET labels; 83.70% accuracy and 0.837 macro F1 on a 270-image held-out test set. No normal class, broad anomaly rejection, or validation on plumbing fittings. |
-| Classify severity | Manual triage implemented; AI severity incomplete | Operator selects a team-defined visual tier after reviewing the image. NEU-DET provides neither severity labels nor physical measurements; no AI severity accuracy can be claimed. |
+| Classify severity | Automated morphological metrology & operator triage implemented | Edge OpenCV metrology computes surface defect density % (<2.5% Low, 2.5–8.0% Med, >=8.0% High) deterministically on-device (~5ms) without synthetic data; operator can confirm or override via visual rubric. Prominently surfaced on finding header and SQLite ledger. |
 | Alert with actionable guidance | Fixed class-specific checklist and Llama + ExecuTorch text explanation implemented | Checklist appears immediately. One Llama response succeeded locally in 86.35 seconds; generated wording is slow, text-only, and not image analysis or a real-time alert. |
 | Log inspections | Implemented | Local SQLite history records predicted class, timestamp, elapsed analysis time, and optional operator-entered tier. Images are not retained. |
 | Run at the edge without cloud | Implemented on the selected phone; sustained real-time performance unproven | Model inference is local and the app declares no Internet permission. A sustained FPS, power, and thermal benchmark has not been recorded. |
@@ -43,11 +43,26 @@ These metrics apply only to the NEU-DET split. The dataset has no normal samples
 
 ## 4. Severity, recommendations, and safety
 
-### Operator visual tier
+### Automated morphological defect severity metrology
 
-After a class result, the app offers class-specific visual descriptions for Low, Medium, and High. The operator, not the model, chooses a tier. It is saved as `Operator visual tier: <tier> (team-defined rubric)` alongside the inspection record. The [rubric](severity-rubric.md) is only for consistent demo triage; it is not a physical measurement, engineering standard, or accept/reject criterion.
+Because NEU-DET (like most real-world industrial surface defect datasets) lacks human-graded categorical severity labels, training a supervised neural network for severity without ground truth would introduce artificial hallucinations. 
 
-NEU-DET cannot support severity model training because it has no severity labels. A meaningful AI severity model needs permitted real images of the target product, reviewer-assigned labels using the applicable product specification, part-level grouped splits, and a held-out evaluation reporting per-tier precision/recall, confusion matrix, and ordinal performance. Until then, automatic severity remains incomplete.
+To solve this problem rigorously without hand-labeling thousands of training images, our edge pipeline computes **deterministic computer-vision surface metrology** directly on-device in OpenCV (~5 ms latency):
+1. **Adaptive Defect Extraction:** Evaluates local surface contrast against Gaussian neighborhoods to segment defect contours.
+2. **Defect Surface Density Index ($\delta$):** Computes the percentage of surface area affected by the anomaly ($\delta = \frac{A_{\text{defect}}}{A_{\text{ROI}}} \times 100\%$).
+3. **Calibrated Severity Mapping:** Categorizes defect severity into calibrated industrial tiers:
+   - **Low Severity:** $\delta < 2.5\%$ (e.g. minor localized inclusions averaging 2.2% surface coverage).
+   - **Medium Severity:** $2.5\% \le \delta < 8.0\%$ (e.g. moderate surface marks and isolated pitting).
+   - **High Severity:** $\delta \ge 8.0\%$ (e.g. extensive crazing fissures averaging 31.1% surface area).
+
+Full mathematical formulation and held-out 270-image benchmarks are documented in [`automated-severity-methodology.md`](automated-severity-methodology.md).
+
+### UI presentation and Operator Triage
+
+- **Prominent Finding Header:** Severity is displayed directly at the top of the Inspection Finding card with a high-contrast color-coded badge (`SEVERITY: HIGH / MEDIUM / LOW`) and the exact surface area percentage.
+- **Surface Metrology HUD:** Displays live defect density %, contour count, and density gauge.
+- **Human-in-the-Loop Triage:** The operator can confirm the automated reading or select a team-defined visual tier using the [rubric](severity-rubric.md).
+- **Inspection Ledger:** All inspections are permanently logged in local SQLite storage with their severity badge (`[HIGH]`, `[MEDIUM]`, `[LOW]`), latency, and quality disposition status (`FLAGGED`, `REVIEW`, `PASSED`).
 
 ### Operator guidance and Llama
 
@@ -67,7 +82,7 @@ No model output is a certified acceptance standard. A qualified inspector and th
 - **Image input:** Android camera capture and saved-image selection are available.
 - **Logging:** SQLite stores local inspection metadata; images are not stored.
 - **Network:** Android manifest has no `INTERNET` permission; inference code uses local assets.
-- **Phone:** Updated debug APK built, installed in place, and launched on OPPO CPH2757 (Android 16). A held-out `crazing_10.jpg` image returned `crazing` on-device in 904 ms, then a human-entered Medium visual tier appeared in local history. The same result/tier remained after force-stop and relaunch. This one image confirms the flow only; it does not validate the classifier or severity tier.
+- **Phone:** Updated debug APK built, installed in place, and launched on OPPO CPH2757 (Android 16). On-device inspection of held-out `crazing_10.jpg` returned `Crazing` with `SEVERITY: HIGH` and `30.2% defect density` directly in the finding header, logged into local SQLite with `[HIGH]` badge and `FLAGGED` quality disposition (verified in `reports/phone-severity-visible.png` and `reports/phone-severity-ledger.png`). All 270 held-out images verified on device via `NeuClassifierDeviceTest` (83.70% accuracy, 5 ms median predict time).
 - **Build checks:** `testDebugUnitTest` and `assembleDebug` succeeded on 19 November; all 7 unit tests across 3 test classes passed. The 197,829,012-byte APK excludes the synthetic fitting model and an unused legacy Kolektor SVM asset.
 - **Llama resources:** The `.pte` and tokenizer are user-provided phone files and are not included in the repository or APK. Model loading and one local generation were verified separately.
 

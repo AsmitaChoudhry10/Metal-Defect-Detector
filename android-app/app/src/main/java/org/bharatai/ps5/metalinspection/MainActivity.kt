@@ -234,7 +234,7 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                     label = label,
                     inspectedAt = System.currentTimeMillis(),
                     durationMs = SystemClock.elapsedRealtime() - startedAt,
-                    severity = "unreviewed",
+                    severity = output.morphology.calculatedSeverity,
                 )
                 currentInspectionId = withContext(Dispatchers.IO) {
                     InspectionHistoryStore(context).use { store -> store.add(record) }
@@ -514,13 +514,13 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                     Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                         SectionHeading(title = "Inspection Finding", eyebrow = "02  ·  CLASSIFICATION & METROLOGY")
 
-                        // Primary Defect Classification Banner
+                        // Primary Defect Classification & Prominent Severity Banner
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(
                                     result.replaceFirstChar { it.uppercase() },
                                     style = MaterialTheme.typography.headlineLarge,
@@ -532,6 +532,47 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                                     },
                                 )
                                 Text("CLOSED-SET PREDICTED DEFECT CLASS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+
+                            // High-Impact Severity Badge at top of finding card
+                            val activeSevTier = (operatorSeverity ?: analysisResult?.morphology?.calculatedSeverity ?: "MEDIUM").uppercase()
+                            val isHigh = activeSevTier.contains("HIGH")
+                            val isMed = activeSevTier.contains("MED")
+                            val sevColor = if (isHigh) LaserCrimson else if (isMed) HazardAmber else NeonEmerald
+                            val sevLabel = if (isHigh) "HIGH" else if (isMed) "MEDIUM" else "LOW"
+
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = sevColor.copy(alpha = 0.16f),
+                                border = BorderStroke(1.5.dp, sevColor),
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    ) {
+                                        Surface(
+                                            modifier = Modifier.size(8.dp),
+                                            shape = CircleShape,
+                                            color = sevColor,
+                                        ) {}
+                                        Text(
+                                            "SEVERITY: $sevLabel",
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = sevColor,
+                                        )
+                                    }
+                                    analysisResult?.morphology?.let { morph ->
+                                        Text(
+                                            "${String.format(Locale.US, "%.1f", morph.defectAreaPercent)}% defect density",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = sevColor.copy(alpha = 0.85f),
+                                        )
+                                    }
+                                }
                             }
                         }
 
@@ -795,8 +836,13 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                         competitionHistory.forEach { record ->
                             val time = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
                                 .format(Date(record.inspectedAt))
-                            val severityNote = record.severity.takeUnless { it == "unreviewed" }
-                                ?.let { " • severity $it" }.orEmpty()
+                            val tier = severityTierOf(record.severity)
+                            val badgeColor = when (tier) {
+                                "HIGH" -> LaserCrimson
+                                "MEDIUM" -> HazardAmber
+                                "LOW" -> NeonEmerald
+                                else -> SlateSurfaceVariant
+                            }
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
                                 color = SlateSurfaceVariant,
@@ -807,20 +853,42 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text(record.label.uppercase(), style = MaterialTheme.typography.labelLarge, color = Color.White)
-                                        Text("$time$severityNote", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        ) {
+                                            Text(record.label.uppercase(), style = MaterialTheme.typography.labelLarge, color = Color.White)
+                                            if (tier != "UNREVIEWED") {
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = badgeColor.copy(alpha = 0.18f),
+                                                    border = BorderStroke(1.dp, badgeColor),
+                                                ) {
+                                                    Text(
+                                                        tier,
+                                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                        color = badgeColor,
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Text("$time · ${record.durationMs} ms", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = ElectricCyan.copy(alpha = 0.12f),
-                                    ) {
-                                        Text(
-                                            "${record.durationMs} ms",
-                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = ElectricCyan,
-                                        )
+                                    if (tier != "UNREVIEWED") {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = ObsidianCanvas,
+                                            border = BorderStroke(1.dp, PrecisionBorder),
+                                        ) {
+                                            Text(
+                                                if (tier == "HIGH") "FLAGGED" else if (tier == "MEDIUM") "REVIEW" else "PASSED",
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                                color = badgeColor,
+                                            )
+                                        }
                                     }
                                 }
                             }

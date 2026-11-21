@@ -20,4 +20,16 @@ class SeverityRubricTest {
     fun operatorSeverityIsExplicitlyRecordedAsNotAiPredicted() {
         assertEquals("Operator visual tier: High (team-defined rubric)", severityHistoryValue("High"))
     }
+
+    @Test
+    fun severityTierOfResolvesAutomatedAndOperatorTiers() {
+        assertEquals("HIGH", severityTierOf("HIGH"))
+        assertEquals("MEDIUM", severityTierOf("MEDIUM"))
+        assertEquals("LOW", severityTierOf("LOW"))
+        assertEquals("HIGH", severityTierOf(severityHistoryValue("High")))
+        assertEquals("MEDIUM", severityTierOf(severityHistoryValue("Medium")))
+        assertEquals("LOW", severityTierOf(severityHistoryValue("Low")))
+        assertEquals("UNREVIEWED", severityTierOf("unreviewed"))
+        assertEquals("UNREVIEWED", severityTierOf(""))
+    }
 }

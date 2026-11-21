@@ -43,3 +43,13 @@ internal fun severityRubricFor(label: String): SeverityRubric = when (
 }
 
 internal fun severityHistoryValue(level: String): String = "Operator visual tier: $level (team-defined rubric)"
+
+internal fun severityTierOf(raw: String): String {
+    val upper = raw.uppercase()
+    return when {
+        upper.contains("HIGH") -> "HIGH"
+        upper.contains("MED") -> "MEDIUM"
+        upper.contains("LOW") -> "LOW"
+        else -> "UNREVIEWED"
+    }
+}
