@@ -25,6 +25,18 @@ class LlamaOutputSanitizerTest {
     }
 
     @Test
+    fun removesConversationalPreambleFromLlamaOutput() {
+        assertEquals(
+            "Quarantine coil immediately (Red Tag) and halt feed.",
+            cleanLlamaOutput("<|assistant|> Here is the industrial QC Copilot output: Quarantine coil immediately (Red Tag) and halt feed. <|eot_id|>"),
+        )
+        assertEquals(
+            "Quarantine coil immediately.",
+            cleanLlamaOutput("Recommendation: Quarantine coil immediately."),
+        )
+    }
+
+    @Test
     fun rejectsGenericReplyThatDoesNotUseChecklistDetails() {
         val checklist = "Retake a sharply focused close-up under diffuse lighting. Compare crack-like patterns with the accepted reference."
         assertTrue(isUnsupportedLlamaOutput("Inspectors should perform the checks and verify the results.", checklist))

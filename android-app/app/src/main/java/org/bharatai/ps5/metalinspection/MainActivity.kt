@@ -535,7 +535,7 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                                         else -> CyberTeal
                                     },
                                 )
-                                Text("CLOSED-SET PREDICTED DEFECT CLASS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("AUTOMATIC EDGE CV DETECTION · NO TRIAGE REQUIRED", style = MaterialTheme.typography.labelSmall, color = ElectricCyan)
                             }
 
                             // High-Impact Severity Badge at top of finding card
@@ -564,7 +564,7 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                                             color = sevColor,
                                         ) {}
                                         Text(
-                                            if (isPass) "STATUS: PASS" else "SEVERITY: $sevLabel",
+                                            if (isPass) "STATUS: PASS" else "AUTOMATED SEVERITY: $sevLabel",
                                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                             color = sevColor,
                                         )
@@ -578,7 +578,7 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                                     } else {
                                         analysisResult?.morphology?.let { morph ->
                                             Text(
-                                                "${String.format(Locale.US, "%.1f", morph.defectAreaPercent)}% defect density",
+                                                "${String.format(Locale.US, "%.1f", morph.defectAreaPercent)}% surface density",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = sevColor.copy(alpha = 0.85f),
                                             )
@@ -753,18 +753,21 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
 
                         HorizontalDivider(color = PrecisionBorder)
 
-                        // Operator Visual Triage & Part Disposition
-                        Text("Operator Visual Triage & Part Disposition", style = MaterialTheme.typography.titleMedium, color = Color.White)
-                        Text("Record human inspector disposition. Use 'Pass / No Defect' if surface is clear, or grade defect severity.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        // Inspector Visual Override (Optional Audit Note)
+                        Text("Inspector Visual Override (Optional)", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                        Text(
+                            "Automated Edge Metrology has already determined severity above. Use the options below only if a human inspector wants to record a manual override in the audit ledger.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         val rubric = severityRubricFor(result)
-                        SeverityChoice("Pass / No Defect", "Specimen is clear of surface flaws; meets tolerance for release to production.", operatorSeverity == "Pass", NeonEmerald) { saveOperatorSeverity("Pass") }
                         SeverityChoice("Low Severity", rubric.low, operatorSeverity == "Low", LowSeverity) { saveOperatorSeverity("Low") }
                         SeverityChoice("Medium Severity", rubric.medium, operatorSeverity == "Medium", MediumSeverity) { saveOperatorSeverity("Medium") }
                         SeverityChoice("High Severity", rubric.high, operatorSeverity == "High", HighSeverity) { saveOperatorSeverity("High") }
                         Text(
-                            operatorSeverity?.let { "Recorded Disposition: $it" } ?: "No operator disposition recorded (using automated metrology)",
+                            operatorSeverity?.let { "Recorded Override: $it" } ?: "Active Status: Using Automated Severity (${analysisResult?.morphology?.calculatedSeverity ?: "CALCULATING"})",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = if (operatorSeverity != null) ElectricCyan else NeonEmerald,
                         )
                     }
                 }
@@ -1132,68 +1135,69 @@ private fun LlamaAssistantPanel(context: Context, defectLabel: String?, severity
                     ) { Text("Tokenizer", style = MaterialTheme.typography.labelSmall) }
                 }
             }
-            FilledTonalButton(
-                enabled = modelPath != null && tokenizerPath != null && module == null && !loadingModel,
-                onClick = {
-                    val mp = modelPath ?: return@FilledTonalButton
-                    val tp = tokenizerPath ?: return@FilledTonalButton
-                    loadingModel = true
-                    panelMessage = "Verifying model checksums and initializing ExecuTorch mmap…"
-                    scope.launch {
-                        val result = withContext(Dispatchers.IO) {
-                            runCatching {
-                                LlamaModelStore.verifyPair(File(mp), File(tp))
-                                val config = LlmModuleConfig.create()
-                                    .modulePath(mp)
-                                    .tokenizerPath(tp)
-                                    .temperature(0.2f)
-                                    .modelType(LlmModuleConfig.MODEL_TYPE_TEXT)
-                                    .loadMode(LlmModuleConfig.LOAD_MODE_MMAP)
-                                    .build()
-                                LlmModule(config).also { it.load() }
-                            }
-                        }
-                        loadingModel = false
-                        result.onSuccess { module = it; panelMessage = "ExecuTorch Llama module loaded in memory. Ready to generate." }
-                            .onFailure { panelMessage = "Model load failed: ${it.message ?: "checksum error"}. Ensure complete files are selected." }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = SlateSurfaceVariant,
-                    contentColor = ElectricCyan,
-                ),
-            ) {
-                Text(if (loadingModel) "LOADING EXECUTORCH RUNTIME…" else "INITIALIZE LLAMA ON-DEVICE", style = MaterialTheme.typography.labelSmall)
-            }
+            val hasFiles = modelPath != null && tokenizerPath != null
+            val isReady = module != null
+            
             Button(
-                enabled = module != null && defectLabel != null,
+                enabled = hasFiles && defectLabel != null && !loadingModel,
                 onClick = {
-                    val llm = module ?: return@Button
+                    val mp = modelPath ?: return@Button
+                    val tp = tokenizerPath ?: return@Button
                     val label = defectLabel ?: return@Button
                     answer = ""
-                    panelMessage = "Generating on-device inference via ExecuTorch…"
-                    val approvedSteps = checklistText
-                    val fullPrompt = buildLlamaPrompt(label, approvedSteps, severityTier)
-                    scope.launch(Dispatchers.IO) {
-                        runCatching {
-                            llm.resetContext()
-                            val generationConfig = LlmGenerationConfig.create()
-                                .seqLen(128)
-                                .maxNewTokens(45)
-                                .temperature(0.1f)
-                                .echo(false)
-                                .build()
-                            llm.generate(fullPrompt, generationConfig, object : LlmCallback {
-                                override fun onResult(result: String) { mainHandler.post { answer = (answer + result).take(500) } }
-                                override fun onStats(stats: String) { mainHandler.post { panelMessage = "Advisory generated on-device. Fixed checklist remains primary." } }
-                                override fun onError(errorCode: Int, message: String) { mainHandler.post { answer = ""; panelMessage = "Llama generation failed. Use the fixed checklist above." } }
-                            })
-                        }.onFailure {
-                            mainHandler.post {
-                                answer = ""
-                                panelMessage = "Llama execution failed. Use the fixed checklist above."
+                    
+                    scope.launch {
+                        val activeModule = module ?: run {
+                            loadingModel = true
+                            panelMessage = "Initializing ExecuTorch Llama on-device…"
+                            val loadResult = withContext(Dispatchers.IO) {
+                                runCatching {
+                                    LlamaModelStore.verifyPair(File(mp), File(tp))
+                                    val config = LlmModuleConfig.create()
+                                        .modulePath(mp)
+                                        .tokenizerPath(tp)
+                                        .temperature(0.2f)
+                                        .modelType(LlmModuleConfig.MODEL_TYPE_TEXT)
+                                        .loadMode(LlmModuleConfig.LOAD_MODE_MMAP)
+                                        .build()
+                                    LlmModule(config).also { it.load() }
+                                }
+                            }
+                            loadingModel = false
+                            loadResult.fold(
+                                onSuccess = { loaded ->
+                                    module = loaded
+                                    panelMessage = "ExecuTorch loaded. Generating recommendation…"
+                                    loaded
+                                },
+                                onFailure = {
+                                    panelMessage = "Model load failed: ${it.message ?: "file error"}"
+                                    null
+                                }
+                            )
+                        } ?: return@launch
+                        
+                        panelMessage = "Generating on-device inference via ExecuTorch…"
+                        val fullPrompt = buildLlamaPrompt(label, checklistText, severityTier)
+                        withContext(Dispatchers.IO) {
+                            runCatching {
+                                activeModule.resetContext()
+                                val generationConfig = LlmGenerationConfig.create()
+                                    .seqLen(128)
+                                    .maxNewTokens(50)
+                                    .temperature(0.1f)
+                                    .echo(false)
+                                    .build()
+                                activeModule.generate(fullPrompt, generationConfig, object : LlmCallback {
+                                    override fun onResult(result: String) { mainHandler.post { answer = (answer + result).take(500) } }
+                                    override fun onStats(stats: String) { mainHandler.post { panelMessage = "Advisory generated on-device." } }
+                                    override fun onError(errorCode: Int, message: String) { mainHandler.post { answer = ""; panelMessage = "Llama generation failed: $message" } }
+                                })
+                            }.onFailure {
+                                mainHandler.post {
+                                    answer = ""
+                                    panelMessage = "Llama execution failed: ${it.message}"
+                                }
                             }
                         }
                     }
@@ -1205,7 +1209,15 @@ private fun LlamaAssistantPanel(context: Context, defectLabel: String?, severity
                     contentColor = Color(0xFF00222A),
                 ),
             ) {
-                Text("GENERATE LLAMA ADVISORY", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                Text(
+                    when {
+                        loadingModel -> "INITIALIZING EXECUTORCH RUNTIME…"
+                        !hasFiles -> "SELECT MODEL & TOKENIZER ABOVE"
+                        isReady -> "GENERATE LLAMA ADVISORY"
+                        else -> "INITIALIZE & GENERATE ADVISORY"
+                    },
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                )
             }
             val displayAnswer = cleanLlamaOutput(answer)
             if (displayAnswer.isNotBlank()) {
@@ -1269,21 +1281,24 @@ private fun checklistFor(label: String): List<String> = when (label.lowercase().
 }
 
 internal fun buildLlamaPrompt(label: String, approvedChecklist: String, severity: String = "HIGH"): String {
-    val isNormal = label.lowercase().contains("clean") || label.lowercase().contains("normal") || label.lowercase().contains("pass")
-    val objective = if (isNormal) "Release batch to production and maintain line speed." else "Specify disposition (quarantine/rework) and tooling check."
+    val cleanLabel = label.replace('_', ' ').replace('-', ' ').trim()
+    val cleanSeverity = severity.replace(Regex("\\([^)]*\\)"), "").trim().ifBlank { "High" }
+    val isNormal = cleanLabel.lowercase().contains("clean") || cleanLabel.lowercase().contains("normal") || cleanLabel.lowercase().contains("pass")
+    val instruction = if (isNormal) "State lot clearance and production release." else "State part quarantine/rework and tooling check."
     return """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-Industrial QC Copilot. 1-2 concise actionable sentences: $objective
+Industrial QC Copilot. 1 concise direct sentence: $instruction No intro.
 <|eot_id|><|start_header_id|>user<|end_header_id|>
-Finding: $label (Severity: $severity)
-SOP:
-$approvedChecklist
+Defect: $cleanLabel. Severity: $cleanSeverity. Action?
 <|eot_id|><|start_header_id|>assistant<|end_header_id|>""".trimIndent()
 }
 
-internal fun cleanLlamaOutput(text: String): String = text
-    .replace(Regex("""<\|[^|]+\|>"""), " ")
-    .replace(Regex("\\s+"), " ")
-    .trim()
+internal fun cleanLlamaOutput(text: String): String {
+    var cleaned = text.replace(Regex("""<\|[^|]+\|>"""), " ").trim()
+    cleaned = cleaned.replace(Regex("""(?i)^(Here is (the )?[^:]+:\s*)+"""), "")
+    cleaned = cleaned.replace(Regex("""(?i)^(Recommendation:\s*)+"""), "")
+    cleaned = cleaned.replace(Regex("""(?i)^(Action:\s*)+"""), "")
+    return cleaned.replace(Regex("\\s+"), " ").trim()
+}
 
 internal fun isUnsupportedLlamaOutput(text: String, approvedChecklist: String): Boolean {
     val response = text.lowercase()
