@@ -504,6 +504,10 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                     }
                 }
 
+                val isManualPass = operatorSeverity?.equals("Pass", ignoreCase = true) == true
+                val activeSevTier = if (isManualPass) "PASS" else (operatorSeverity ?: analysisResult?.morphology?.calculatedSeverity ?: "MEDIUM").uppercase()
+                val effectiveGuidanceLabel = if (isManualPass) "no_defect" else result
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(22.dp),
@@ -535,11 +539,11 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                             }
 
                             // High-Impact Severity Badge at top of finding card
-                            val activeSevTier = (operatorSeverity ?: analysisResult?.morphology?.calculatedSeverity ?: "MEDIUM").uppercase()
                             val isHigh = activeSevTier.contains("HIGH")
                             val isMed = activeSevTier.contains("MED")
+                            val isPass = activeSevTier.contains("PASS") || activeSevTier.contains("CLEAN")
                             val sevColor = if (isHigh) LaserCrimson else if (isMed) HazardAmber else NeonEmerald
-                            val sevLabel = if (isHigh) "HIGH" else if (isMed) "MEDIUM" else "LOW"
+                            val sevLabel = if (isHigh) "HIGH" else if (isMed) "MEDIUM" else if (isPass) "PASS" else "LOW"
 
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
@@ -560,17 +564,25 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                                             color = sevColor,
                                         ) {}
                                         Text(
-                                            "SEVERITY: $sevLabel",
+                                            if (isPass) "STATUS: PASS" else "SEVERITY: $sevLabel",
                                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                             color = sevColor,
                                         )
                                     }
-                                    analysisResult?.morphology?.let { morph ->
+                                    if (isPass) {
                                         Text(
-                                            "${String.format(Locale.US, "%.1f", morph.defectAreaPercent)}% defect density",
+                                            "Clear for Production",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = sevColor.copy(alpha = 0.85f),
                                         )
+                                    } else {
+                                        analysisResult?.morphology?.let { morph ->
+                                            Text(
+                                                "${String.format(Locale.US, "%.1f", morph.defectAreaPercent)}% defect density",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = sevColor.copy(alpha = 0.85f),
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -704,9 +716,14 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
 
                         HorizontalDivider(color = PrecisionBorder)
 
-                        // Actionable Rechecks
-                        Text("Actionable Recheck Guidance", style = MaterialTheme.typography.titleMedium, color = Color.White)
-                        checklistFor(result).forEachIndexed { index, item ->
+                        // Actionable Industrial Recommendations
+                        val effectiveGuidanceLabel = if (isManualPass) "no_defect" else result
+                        Text(
+                            if (isManualPass) "Actionable Guidance · Part Clearance SOP" else "Actionable Guidance · Defect Response SOP",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = if (isManualPass) NeonEmerald else Color.White,
+                        )
+                        checklistFor(effectiveGuidanceLabel).forEachIndexed { index, item ->
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(10.dp),
@@ -720,13 +737,13 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(4.dp),
-                                        color = ElectricCyan.copy(alpha = 0.15f),
+                                        color = (if (isManualPass) NeonEmerald else ElectricCyan).copy(alpha = 0.15f),
                                     ) {
                                         Text(
                                             String.format(Locale.US, "%02d", index + 1),
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = ElectricCyan,
+                                            color = if (isManualPass) NeonEmerald else ElectricCyan,
                                         )
                                     }
                                     Text(item, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = Color(0xFFDCE6F2))
@@ -736,15 +753,16 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
 
                         HorizontalDivider(color = PrecisionBorder)
 
-                        // Operator Visual Triage Rubric
-                        Text("Operator Visual Triage Rubric", style = MaterialTheme.typography.titleMedium, color = Color.White)
-                        Text("Record a team-defined visual tier. This is a human inspector triage, not a model prediction.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        // Operator Visual Triage & Part Disposition
+                        Text("Operator Visual Triage & Part Disposition", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                        Text("Record human inspector disposition. Use 'Pass / No Defect' if surface is clear, or grade defect severity.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         val rubric = severityRubricFor(result)
+                        SeverityChoice("Pass / No Defect", "Specimen is clear of surface flaws; meets tolerance for release to production.", operatorSeverity == "Pass", NeonEmerald) { saveOperatorSeverity("Pass") }
                         SeverityChoice("Low Severity", rubric.low, operatorSeverity == "Low", LowSeverity) { saveOperatorSeverity("Low") }
                         SeverityChoice("Medium Severity", rubric.medium, operatorSeverity == "Medium", MediumSeverity) { saveOperatorSeverity("Medium") }
                         SeverityChoice("High Severity", rubric.high, operatorSeverity == "High", HighSeverity) { saveOperatorSeverity("High") }
                         Text(
-                            operatorSeverity?.let { "Recorded: $it visual tier" } ?: "No visual tier recorded",
+                            operatorSeverity?.let { "Recorded Disposition: $it" } ?: "No operator disposition recorded (using automated metrology)",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -752,7 +770,7 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                 }
 
                 // Llama 3.2 ExecuTorch Assistant Terminal
-                LlamaAssistantPanel(context, result)
+                LlamaAssistantPanel(context, effectiveGuidanceLabel, activeSevTier)
 
                 Spacer(modifier = Modifier.height(4.dp))
 
@@ -1028,7 +1046,7 @@ private fun SeverityChoice(
 }
 
 @Composable
-private fun LlamaAssistantPanel(context: Context, defectLabel: String?) {
+private fun LlamaAssistantPanel(context: Context, defectLabel: String?, severityTier: String = "HIGH") {
     val scope = rememberCoroutineScope()
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
     val llamaDirectory = remember(context) { File(context.filesDir, "llama") }
@@ -1157,13 +1175,13 @@ private fun LlamaAssistantPanel(context: Context, defectLabel: String?) {
                     answer = ""
                     panelMessage = "Generating on-device inference via ExecuTorch…"
                     val approvedSteps = checklistText
-                    val fullPrompt = buildLlamaPrompt(label, approvedSteps)
+                    val fullPrompt = buildLlamaPrompt(label, approvedSteps, severityTier)
                     scope.launch(Dispatchers.IO) {
                         runCatching {
                             llm.resetContext()
                             val generationConfig = LlmGenerationConfig.create()
                                 .seqLen(128)
-                                .maxNewTokens(24)
+                                .maxNewTokens(45)
                                 .temperature(0.1f)
                                 .echo(false)
                                 .build()
@@ -1207,49 +1225,60 @@ private fun LlamaAssistantPanel(context: Context, defectLabel: String?) {
     }
 }
 
-private fun checklistFor(label: String): List<String> = when (label.lowercase().replace(' ', '_')) {
-    "crazing" -> listOf(
-        "Retake a sharply focused close-up under even, diffuse lighting.",
-        "Have an inspector compare crack-like surface patterns with the accepted reference.",
-        "Verify micro-fissure propagation depth against drawing tolerances."
+private fun checklistFor(label: String): List<String> = when (label.lowercase().replace(' ', '_').replace('-', '_')) {
+    "crazing", "crack", "cracks" -> listOf(
+        "IMMEDIATE DISPOSITION: Quarantine coil immediately (Red Tag). Halt uncoiler feed if micro-fissure propagation is continuous.",
+        "CORRECTIVE ACTION: Inspect hot-strip mill cooling sprays and work-roll thermal profile for thermal shock.",
+        "QUALITY CHECK: Perform ultrasonic / dye-penetrant depth check; verify micro-fissure depth within drawing tolerance."
+    )
+    "scratches", "scratch" -> listOf(
+        "IMMEDIATE DISPOSITION: Hold part for surface dressing. Verify score groove is within allowable 0.05 mm polish tolerance.",
+        "CORRECTIVE ACTION: Clean uncoiler guide rollers, entry table, and side bridles for embedded metal shaving grit.",
+        "QUALITY CHECK: Verify scratch does not traverse critical sealing surfaces, threads, or stress concentration zones."
+    )
+    "pitted_surface", "corrosion", "corroded", "pitted" -> listOf(
+        "IMMEDIATE DISPOSITION: Isolate batch for surface profilometry. Rework via orbital buffing if pit depression < 0.10 mm.",
+        "CORRECTIVE ACTION: Test acid pickling concentration, rinse bath temperature, and neutralize chemical carryover.",
+        "QUALITY CHECK: Measure surface roughness (verify Ra <= 1.6 um); ensure no localized flaking or through-thickness porosity."
     )
     "inclusion" -> listOf(
-        "Retake a focused close-up with glare reduced.",
-        "Have an inspector check for embedded foreign particles against the material specification.",
-        "Assess whether embedded slag or non-metallic inclusion exceeds critical structural thresholds."
+        "IMMEDIATE DISPOSITION: Segregate specimen for metallurgical evaluation. Prevent feeding to high-stress forming line.",
+        "CORRECTIVE ACTION: Cross-reference melt heat number; verify upstream tundish deoxidation and argon shielding logs.",
+        "QUALITY CHECK: Perform non-destructive magnetic particle inspection across critical load-bearing cross-sections."
+    )
+    "rolled_in_scale", "rolled-in_scale", "scale" -> listOf(
+        "IMMEDIATE DISPOSITION: Crop defective linear strip footage. Do not release to cold reduction or galvanizing lines.",
+        "CORRECTIVE ACTION: Inspect high-pressure descaling header nozzles for clogging; verify minimum 150 bar spray pressure.",
+        "QUALITY CHECK: Conduct cross-hatch bend test to verify scale entrapment does not cause coating delamination."
     )
     "patches" -> listOf(
-        "Retake the surface with uniform lighting to eliminate shadowing.",
-        "Have an inspector compare the discolored or uneven area with an accepted reference specimen.",
-        "Verify whether surface oxide or plating irregularity affects corrosion barrier integrity."
+        "IMMEDIATE DISPOSITION: Flag sheet for localized rotary grinding or shear cropping. Check adjacent strip for periodic repeats.",
+        "CORRECTIVE ACTION: Inspect roughing mill work-roll surface for spalling, roll fatigue, or mechanical roll banding.",
+        "QUALITY CHECK: Use ultrasonic thickness gauge to confirm remaining wall thickness after surface blending satisfies minimum gauge."
     )
-    "pitted_surface" -> listOf(
-        "Use a close, sharp image with light angled across the surface to accentuate depth.",
-        "Have an inspector verify whether small surface depressions exceed the allowed Ra finish.",
-        "Perform depth gauge micrometer measurement on maximum pit depression."
-    )
-    "rolled_in_scale" -> listOf(
-        "Capture a sharp view along the longitudinal rolling direction.",
-        "Have an inspector check for scale-like marks against the hot-rolled surface standard.",
-        "Examine whether scale entrapment compromises downstream coating adhesion."
-    )
-    "scratches" -> listOf(
-        "Retake a focused close-up with glare reduced along the linear defect axis.",
-        "Have an inspector verify linear scratch length and depth against acceptance limits.",
-        "Check whether scratch crosses critical sealing surfaces, threads, or stress concentrations."
+    "clean", "normal", "no_defect", "passed", "pass" -> listOf(
+        "IMMEDIATE DISPOSITION: RELEASE TO PRODUCTION (GREEN TAG). Specimen surface meets visual acceptance criteria.",
+        "CORRECTIVE ACTION: No machine adjustment required. Log batch clearance in production QA lot register and maintain line speed.",
+        "QUALITY CHECK: Continue scheduled 30-minute interval visual audit on subsequent production coils."
     )
     else -> listOf(
-        "Retake the image with perpendicular camera alignment and uniform illumination.",
-        "Have a qualified NDT inspector make the final disposition decision."
+        "IMMEDIATE DISPOSITION: Hold specimen under inspection hold until qualified QA inspector completes visual evaluation.",
+        "CORRECTIVE ACTION: Check production tooling, lubrication flow, and optical sensor alignment.",
+        "QUALITY CHECK: Compare specimen surface against visual master reference standard."
     )
 }
 
-internal fun buildLlamaPrompt(label: String, approvedChecklist: String): String = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-Rewrite only the checklist as one short actionable sentence. Include a concrete detail. Add no facts, image claims, severity, or decisions.
+internal fun buildLlamaPrompt(label: String, approvedChecklist: String, severity: String = "HIGH"): String {
+    val isNormal = label.lowercase().contains("clean") || label.lowercase().contains("normal") || label.lowercase().contains("pass")
+    val objective = if (isNormal) "Release batch to production and maintain line speed." else "Specify disposition (quarantine/rework) and tooling check."
+    return """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+Industrial QC Copilot. 1-2 concise actionable sentences: $objective
 <|eot_id|><|start_header_id|>user<|end_header_id|>
-$label
+Finding: $label (Severity: $severity)
+SOP:
 $approvedChecklist
 <|eot_id|><|start_header_id|>assistant<|end_header_id|>""".trimIndent()
+}
 
 internal fun cleanLlamaOutput(text: String): String = text
     .replace(Regex("""<\|[^|]+\|>"""), " ")
@@ -1265,7 +1294,7 @@ internal fun isUnsupportedLlamaOutput(text: String, approvedChecklist: String): 
     )
     if (unsupportedClaims.any(response::contains)) return true
     val words = response.split(Regex("[^a-z0-9]+")).filter(String::isNotBlank)
-    if (words.size !in 6..50) return true
+    if (words.size !in 5..50) return true
     val genericWords = setOf(
         "check", "checks", "inspect", "inspector", "inspectors", "review", "verify", "results", "result",
         "qualified", "part", "image", "photo", "perform", "action", "steps", "checklist", "guidance",
@@ -1280,8 +1309,11 @@ internal fun isUnsupportedLlamaOutput(text: String, approvedChecklist: String): 
     val hasRepeatedThreeWordPhrase = words.windowed(3).groupingBy { it.joinToString(" ") }
         .eachCount().values.any { it >= 3 }
     if (hasRepeatedThreeWordPhrase) return true
-    return listOf("inspector", "inspect", "verify", "check", "retake", "recheck", "compare", "capture", "use")
-        .none { requiredCue -> response.contains(requiredCue) }
+    val requiredCues = listOf(
+        "inspector", "inspect", "verify", "check", "retake", "recheck", "compare", "capture", "use",
+        "quarantine", "release", "rework", "halt", "hold", "clean", "pass", "tolerance", "spray", "roll",
+    )
+    return requiredCues.none { response.contains(it) }
 }
 
 private fun loadPreviewBitmap(context: Context, uri: Uri): Bitmap? {

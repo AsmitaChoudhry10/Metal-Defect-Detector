@@ -47,6 +47,7 @@ internal fun severityHistoryValue(level: String): String = "Operator visual tier
 internal fun severityTierOf(raw: String): String {
     val upper = raw.uppercase()
     return when {
+        upper.contains("PASS") || upper.contains("CLEAN") -> "PASS"
         upper.contains("HIGH") -> "HIGH"
         upper.contains("MED") -> "MEDIUM"
         upper.contains("LOW") -> "LOW"
