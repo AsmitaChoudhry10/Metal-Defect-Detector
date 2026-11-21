@@ -4,13 +4,27 @@ import android.content.Context
 import android.graphics.Bitmap
 import org.opencv.android.OpenCVLoader
 import org.opencv.android.Utils
+import org.opencv.core.Core
 import org.opencv.core.Mat
 import org.opencv.core.MatOfFloat
+import org.opencv.core.MatOfPoint
 import org.opencv.core.Size
 import org.opencv.imgproc.Imgproc
-import org.opencv.objdetect.HOGDescriptor
 import org.opencv.ml.SVM
+import org.opencv.objdetect.HOGDescriptor
 import java.io.File
+import java.util.ArrayList
+
+data class MorphologicalMetrics(
+    val defectAreaPercent: Float,
+    val contourCount: Int,
+    val calculatedSeverity: String,
+)
+
+data class DefectAnalysisResult(
+    val label: String,
+    val morphology: MorphologicalMetrics,
+)
 
 internal object OpenCvDefectClassifier {
     private val labels = listOf("crazing", "inclusion", "patches", "pitted_surface", "rolled-in_scale", "scratches")
@@ -18,6 +32,11 @@ internal object OpenCvDefectClassifier {
 
     @Synchronized
     fun predict(context: Context, bitmap: Bitmap): String {
+        return analyze(context, bitmap).label
+    }
+
+    @Synchronized
+    fun analyze(context: Context, bitmap: Bitmap): DefectAnalysisResult {
         check(OpenCVLoader.initLocal()) { "OpenCV could not be loaded" }
         val svm = cachedSvm ?: run {
             // Refresh this cache on first use each process so an APK model update cannot
@@ -32,6 +51,8 @@ internal object OpenCvDefectClassifier {
             SVM.load(modelFile.absolutePath).also { cachedSvm = it }
         }
         val rgba = Mat(); val gray = Mat(); val resized = Mat(); val descriptors = MatOfFloat()
+        val blurred = Mat(); val thresh = Mat(); val hierarchy = Mat()
+        val contours = ArrayList<MatOfPoint>()
         try {
             Utils.bitmapToMat(bitmap, rgba)
             Imgproc.cvtColor(rgba, gray, Imgproc.COLOR_RGBA2GRAY)
@@ -40,9 +61,30 @@ internal object OpenCvDefectClassifier {
             hog.compute(resized, descriptors)
             val sample = descriptors.reshape(1, 1)
             val id = try { svm.predict(sample).toInt() } finally { sample.release() }
-            return labels.getOrElse(id) { "unknown" }
+            val label = labels.getOrElse(id) { "unknown" }
+
+            // Automated morphological defect analysis (pixel-level surface metrology)
+            Imgproc.GaussianBlur(resized, blurred, Size(5.0, 5.0), 0.0)
+            Imgproc.adaptiveThreshold(blurred, thresh, 255.0, Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C, Imgproc.THRESH_BINARY_INV, 21, 5.0)
+            val defectPixels = Core.countNonZero(thresh)
+            val areaPct = (defectPixels.toFloat() / 40000f) * 100f
+            Imgproc.findContours(thresh, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE)
+            val contourCount = contours.size
+            val calcSeverity = when {
+                areaPct < 2.5f -> "Low (< 2.5% area)"
+                areaPct < 8.0f -> "Medium (2.5% - 8.0% area)"
+                else -> "High (> 8.0% area)"
+            }
+            val morphology = MorphologicalMetrics(
+                defectAreaPercent = areaPct,
+                contourCount = contourCount,
+                calculatedSeverity = calcSeverity,
+            )
+            return DefectAnalysisResult(label = label, morphology = morphology)
         } finally {
+            for (c in contours) c.release()
             rgba.release(); gray.release(); resized.release(); descriptors.release()
+            blurred.release(); thresh.release(); hierarchy.release()
         }
     }
 }

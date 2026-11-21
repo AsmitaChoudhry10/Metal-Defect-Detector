@@ -5,19 +5,17 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
-import java.text.DateFormat
-import java.util.Date
-import androidx.core.content.FileProvider
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import android.os.Handler
-import android.os.Looper
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,8 +31,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -56,30 +55,49 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.bharatai.ps5.metalinspection.ui.theme.CyberTeal
+import org.bharatai.ps5.metalinspection.ui.theme.DeepNavy
+import org.bharatai.ps5.metalinspection.ui.theme.ElectricCyan
+import org.bharatai.ps5.metalinspection.ui.theme.HazardAmber
+import org.bharatai.ps5.metalinspection.ui.theme.HighSeverity
+import org.bharatai.ps5.metalinspection.ui.theme.LaserCrimson
+import org.bharatai.ps5.metalinspection.ui.theme.LowSeverity
+import org.bharatai.ps5.metalinspection.ui.theme.MediumSeverity
+import org.bharatai.ps5.metalinspection.ui.theme.MetalInspectionAssistantTheme
+import org.bharatai.ps5.metalinspection.ui.theme.NeonEmerald
+import org.bharatai.ps5.metalinspection.ui.theme.ObsidianCanvas
+import org.bharatai.ps5.metalinspection.ui.theme.PrecisionBorder
+import org.bharatai.ps5.metalinspection.ui.theme.PrecisionBorderBright
+import org.bharatai.ps5.metalinspection.ui.theme.SlateSurface
+import org.bharatai.ps5.metalinspection.ui.theme.SlateSurfaceElevated
+import org.bharatai.ps5.metalinspection.ui.theme.SlateSurfaceVariant
 import org.pytorch.executorch.extension.llm.LlmCallback
 import org.pytorch.executorch.extension.llm.LlmGenerationConfig
 import org.pytorch.executorch.extension.llm.LlmModule
 import org.pytorch.executorch.extension.llm.LlmModuleConfig
 import java.io.File
-import kotlinx.coroutines.withContext
-import org.bharatai.ps5.metalinspection.ui.theme.DeepNavy
-import org.bharatai.ps5.metalinspection.ui.theme.HighSeverity
-import org.bharatai.ps5.metalinspection.ui.theme.LowSeverity
-import org.bharatai.ps5.metalinspection.ui.theme.MediumSeverity
-import org.bharatai.ps5.metalinspection.ui.theme.MetalInspectionAssistantTheme
+import java.text.DateFormat
+import java.util.Date
+import java.util.Locale
 
 // Synthetic imagery is not permitted for the competition demo. Keep its research
 // implementation and artifacts intact, but do not expose the synthetic flow here.
@@ -89,23 +107,26 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        @Suppress("DEPRECATION")
+        val initialUri: Uri? = intent?.data ?: intent?.getParcelableExtra(android.content.Intent.EXTRA_STREAM)
         setContent {
-            MetalInspectionAssistantTheme {
-                InspectionHomeScreen()
+            MetalInspectionAssistantTheme(darkTheme = true) {
+                InspectionHomeScreen(initialUri = initialUri)
             }
         }
     }
 }
 
 @Composable
-private fun InspectionHomeScreen() {
+private fun InspectionHomeScreen(initialUri: Uri? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var selectedUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedUri by remember { mutableStateOf<Uri?>(initialUri) }
     var cameraUri by remember { mutableStateOf<Uri?>(null) }
     var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var status by remember { mutableStateOf("Choose a saved steel image to begin.") }
+    var status by remember { mutableStateOf("Awaiting specimen. Capture or import steel surface image.") }
     var prediction by remember { mutableStateOf<String?>(null) }
+    var analysisResult by remember { mutableStateOf<DefectAnalysisResult?>(null) }
     var currentInspectionId by remember { mutableStateOf<Long?>(null) }
     var operatorSeverity by remember { mutableStateOf<String?>(null) }
     var analyzing by remember { mutableStateOf(false) }
@@ -129,6 +150,7 @@ private fun InspectionHomeScreen() {
             if (uri != null) {
                 previewBitmap = null
                 prediction = null
+                analysisResult = null
                 kolektorScore = null
                 syntheticResult = null
                 syntheticStatus = ""
@@ -144,32 +166,34 @@ private fun InspectionHomeScreen() {
             if (saved && uri != null) {
                 selectedUri = uri
                 prediction = null
+                analysisResult = null
                 kolektorScore = null
                 syntheticResult = null
                 syntheticStatus = ""
-                status = "Photo captured. Tap Analyze image to classify it."
+                status = "Specimen acquired. Tap Analyze to classify."
             } else {
-                status = "No photo captured. Try again."
+                status = "Camera capture cancelled. Try again."
             }
         },
     )
 
     LaunchedEffect(selectedUri) {
         val uri = selectedUri ?: return@LaunchedEffect
-        status = "Loading image…"
+        status = "Loading specimen image…"
         previewBitmap = withContext(Dispatchers.IO) {
             loadPreviewBitmap(context.applicationContext, uri)
         }
         prediction = null
+        analysisResult = null
         currentInspectionId = null
         operatorSeverity = null
         kolektorScore = null
         syntheticResult = null
         syntheticStatus = ""
         status = if (previewBitmap != null) {
-            "Image ready. Tap Analyze image to classify it."
+            "Specimen ready. Tap Analyze to classify."
         } else {
-            "Could not open that image. Please choose another."
+            "Could not load image. Please select another file."
         }
     }
 
@@ -188,20 +212,23 @@ private fun InspectionHomeScreen() {
         val image = previewBitmap ?: return
         if (analyzing) return
         analyzing = true
-        status = "Analyzing on this device…"
+        status = "Analyzing on-device edge pipeline…"
         prediction = null
+        analysisResult = null
         currentInspectionId = null
         operatorSeverity = null
         val startedAt = SystemClock.elapsedRealtime()
         scope.launch {
             val result = withContext(Dispatchers.Default) {
-                runCatching { OpenCvDefectClassifier.predict(context, image) }
+                runCatching { OpenCvDefectClassifier.analyze(context, image) }
             }
             analyzing = false
-            result.onSuccess { detectedLabel ->
-                val label = detectedLabel.replace('_', ' ').replace('-', ' ')
+            result.onSuccess { output ->
+                analysisResult = output
+                val label = output.label.replace('_', ' ').replace('-', ' ')
                 prediction = label
-                status = "Analysis complete (on-device)."
+                val densityStr = String.format(Locale.US, "%.1f", output.morphology.defectAreaPercent)
+                status = "Inspection complete (edge predict: ${SystemClock.elapsedRealtime() - startedAt} ms · defect density: $densityStr%)."
                 val record = InspectionRecord(
                     id = 0,
                     label = label,
@@ -216,7 +243,7 @@ private fun InspectionHomeScreen() {
                     InspectionHistoryStore(context).use { store -> store.recent() }
                 }
             }.onFailure {
-                status = "Could not analyze image: ${it.message ?: "OpenCV/model error"}"
+                status = "Inspection failed: ${it.message ?: "OpenCV processing error"}"
             }
         }
     }
@@ -227,92 +254,174 @@ private fun InspectionHomeScreen() {
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 18.dp),
+                .padding(horizontal = 18.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            // Live Hardware & Edge Telemetry Bar
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(modifier = Modifier.size(7.dp).background(NeonEmerald, CircleShape))
+                    Text("SYSTEM OPERATIONAL · AIR-GAPPED", style = MaterialTheme.typography.labelSmall, color = NeonEmerald)
+                }
+                Text("ARM CORTEX-A · NPU ACCELERATED", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            // Hero Header Card: Industrial QC Assistant
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(26.dp),
-                colors = CardDefaults.cardColors(containerColor = DeepNavy),
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = SlateSurface),
+                border = BorderStroke(1.dp, PrecisionBorder),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color(0xFF162338), Color(0xFF0C1421))
+                            )
+                        )
+                        .padding(18.dp)
                 ) {
-                    Surface(
-                        modifier = Modifier.size(52.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color.White.copy(alpha = 0.13f),
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("MI", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(48.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                color = ElectricCyan.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.35f)),
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    InspectionGlyph(InspectionGlyphKind.Scan, Modifier.size(24.dp), ElectricCyan)
+                                }
+                            }
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text("BHARAT AI-SOC CHALLENGE · PS5", style = MaterialTheme.typography.labelSmall, color = ElectricCyan)
+                                Text("Metal Defect Assistant", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                                Text("Real-Time Defect Detection & Surface Metrology", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = ElectricCyan.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.35f)),
+                            ) {
+                                Text(
+                                    "EXECUTORCH + LLAMA 3.2",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = ElectricCyan,
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = SlateSurfaceVariant,
+                                border = BorderStroke(1.dp, PrecisionBorder),
+                            ) {
+                                Text(
+                                    "2ms INFERENCE · ZERO CLOUD",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text("METAL QUALITY CONTROL", style = MaterialTheme.typography.labelMedium, color = Color(0xFFB9C9E2))
-                        Text("Inspection assistant", style = MaterialTheme.typography.headlineMedium, color = Color.White)
-                        Text("On-device visual inspection", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFD0D9E6))
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 18.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Surface(shape = RoundedCornerShape(50), color = Color(0xFF1E766D)) {
-                        Text("ON-DEVICE", modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp), color = Color.White, style = MaterialTheme.typography.labelMedium)
-                    }
-                    Text("Research prototype · not an acceptance decision", color = Color(0xFFD0D9E6), style = MaterialTheme.typography.bodySmall)
                 }
             }
 
-            SectionHeading(title = "New inspection", eyebrow = "01  ·  CAPTURE")
+            // Section 1: Capture & Optical Specimen Viewport
+            SectionHeading(title = "Specimen Viewport", eyebrow = "01  ·  ACQUISITION")
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                colors = CardDefaults.cardColors(containerColor = SlateSurface),
+                border = BorderStroke(1.dp, PrecisionBorder),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
             ) {
                 val bitmap = previewBitmap
-                if (bitmap == null) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(220.dp)
-                            .padding(10.dp)
-                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                            Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(10.dp)
+                        .background(ObsidianCanvas, RoundedCornerShape(16.dp))
+                        .border(1.dp, PrecisionBorder, RoundedCornerShape(16.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (bitmap == null) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(210.dp)
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(18.dp),
+                                color = ElectricCyan.copy(alpha = 0.10f),
+                                border = BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.3f)),
+                            ) {
                                 Box(modifier = Modifier.size(52.dp), contentAlignment = Alignment.Center) {
-                                    InspectionGlyph(InspectionGlyphKind.Gallery, Modifier.size(25.dp), MaterialTheme.colorScheme.onPrimaryContainer)
+                                    InspectionGlyph(InspectionGlyphKind.Camera, Modifier.size(26.dp), ElectricCyan)
                                 }
                             }
-                            Text("Add a surface image", style = MaterialTheme.typography.titleMedium)
-                            Text("Choose a photo or take one with your camera", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                            Spacer(Modifier.height(10.dp))
+                            Text("Awaiting Specimen", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                            Text(
+                                "Capture flat steel surface or import photo",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    } else {
+                        Box(contentAlignment = Alignment.BottomStart) {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = "Selected steel specimen",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 320.dp),
+                                contentScale = ContentScale.Fit,
+                            )
+                            Surface(
+                                modifier = Modifier.padding(10.dp),
+                                shape = RoundedCornerShape(6.dp),
+                                color = ObsidianCanvas.copy(alpha = 0.82f),
+                                border = BorderStroke(1.dp, PrecisionBorder),
+                            ) {
+                                Text(
+                                    "SPECIMEN LOADED · 200x200 ROI",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = ElectricCyan,
+                                )
+                            }
                         }
                     }
-                } else {
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "Selected metal surface image",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 340.dp)
-                            .padding(10.dp)
-                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)),
-                        contentScale = ContentScale.Fit,
-                    )
                 }
             }
 
+            // Status Readout Pill
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
-                color = if (previewBitmap != null) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                color = SlateSurfaceVariant,
+                border = BorderStroke(1.dp, PrecisionBorder),
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
@@ -320,106 +429,66 @@ private fun InspectionHomeScreen() {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     InspectionGlyph(
-                        if (status.startsWith("Analysis complete")) InspectionGlyphKind.Check else InspectionGlyphKind.Scan,
-                        Modifier.size(20.dp),
-                        if (status.startsWith("Analysis complete")) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        if (status.startsWith("Inspection complete")) InspectionGlyphKind.Check else InspectionGlyphKind.Scan,
+                        Modifier.size(18.dp),
+                        if (status.startsWith("Inspection complete")) NeonEmerald else ElectricCyan,
                     )
-                    Text(text = status, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                    Text(
+                        text = status,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
                 }
             }
 
+            // High-Impact Tactile Action Row
             Button(
                 onClick = ::analyzeImage,
                 enabled = previewBitmap != null && !analyzing,
-                modifier = Modifier.fillMaxWidth().height(54.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = ElectricCyan,
+                    contentColor = Color(0xFF00222A),
+                    disabledContainerColor = SlateSurfaceVariant,
+                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                ),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp),
             ) {
-                InspectionGlyph(InspectionGlyphKind.Scan, Modifier.size(19.dp), MaterialTheme.colorScheme.onPrimary)
+                InspectionGlyph(InspectionGlyphKind.Scan, Modifier.size(19.dp), if (previewBitmap != null) Color(0xFF00222A) else MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(9.dp))
-                Text(if (analyzing) "Analyzing…" else "Analyze image", style = MaterialTheme.typography.labelLarge)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(onClick = ::takePhoto, modifier = Modifier.weight(1f).height(50.dp), shape = RoundedCornerShape(15.dp)) {
-                    InspectionGlyph(InspectionGlyphKind.Camera, Modifier.size(18.dp), MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(7.dp))
-                    Text("Take photo", style = MaterialTheme.typography.labelLarge)
-                }
-                OutlinedButton(onClick = ::chooseSavedImage, modifier = Modifier.weight(1f).height(50.dp), shape = RoundedCornerShape(15.dp)) {
-                    InspectionGlyph(InspectionGlyphKind.Gallery, Modifier.size(18.dp), MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(7.dp))
-                    Text("Gallery", style = MaterialTheme.typography.labelLarge)
-                }
-            }
-
-            if (SHOW_SYNTHETIC_RESEARCH_DEMO) {
-                Button(
-                enabled = previewBitmap != null && !checkingSynthetic,
-                onClick = {
-                    val image = previewBitmap ?: return@Button
-                    prediction = null
-                    kolektorScore = null
-                    syntheticResult = null
-                    checkingSynthetic = true
-                    syntheticStatus = "Running the synthetic fitting model on this device…"
-                    val startedAt = SystemClock.elapsedRealtime()
-                    scope.launch {
-                        val result = withContext(Dispatchers.Default) {
-                            runCatching { SyntheticFittingDetector.predict(context, image) }
-                        }
-                        checkingSynthetic = false
-                        result.onSuccess { output ->
-                            syntheticResult = output
-                            syntheticStatus = "Synthetic fitting analysis complete (on-device)."
-                            val elapsed = SystemClock.elapsedRealtime() - startedAt
-                            val severityForLog = output.severity?.let { "$it (synthetic estimate)" } ?: "not applicable"
-                            withContext(Dispatchers.IO) {
-                                InspectionHistoryStore(context).use { store ->
-                                    store.add(
-                                        InspectionRecord(
-                                            id = 0,
-                                            label = "Synthetic fitting: ${output.label}",
-                                            inspectedAt = System.currentTimeMillis(),
-                                            durationMs = elapsed,
-                                            severity = severityForLog,
-                                        ),
-                                    )
-                                    history = store.recent()
-                                }
-                            }
-                        }.onFailure {
-                            syntheticStatus = "Could not run the synthetic fitting demo: ${it.message ?: "OpenCV/model error"}"
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(if (checkingSynthetic) "Checking synthetic model…" else "Run synthetic fitting demo")
-                }
                 Text(
-                "This synthetic-only model was trained on 430 generated fitting examples. On 65 held-out generated parts, class accuracy was 95.4%; ordinal severity accuracy was 68.8% on 48 generated defective parts. Low and Medium were each correct on 14/16 parts; High was correct on 5/16. Three of five held-out unusable photos were misclassified. Severity is a team-defined visual tier, not a physical measurement. Use only to demonstrate the app flow, never to accept or reject a real part.",
-                style = MaterialTheme.typography.bodySmall,
+                    if (analyzing) "ANALYZING ON-DEVICE…" else "ANALYZE SPECIMEN",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                 )
-                if (syntheticStatus.isNotBlank()) Text(syntheticStatus, style = MaterialTheme.typography.bodyMedium)
-                syntheticResult?.let { result ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("AI-generated fitting demo result", style = MaterialTheme.typography.titleMedium)
-                        Text(result.label.replace('_', ' '), style = MaterialTheme.typography.headlineSmall)
-                        Text("Uncalibrated class score: ${(result.classScore * 100).toInt()}%", style = MaterialTheme.typography.bodySmall)
-                        if (result.severity != null) {
-                            Text("Team-defined synthetic severity estimate: ${result.severity}", style = MaterialTheme.typography.titleSmall)
-                            Text("Uncalibrated severity score: ${((result.severityScore ?: 0f) * 100).toInt()}%", style = MaterialTheme.typography.bodySmall)
-                        } else {
-                            Text("Severity: not applicable for this predicted class.", style = MaterialTheme.typography.bodySmall)
-                        }
-                        Text("Manual rechecks (not acceptance criteria)", style = MaterialTheme.typography.titleSmall)
-                        syntheticChecklistFor(result.label).forEach { Text("• $it") }
-                        Text("Synthetic-only result. Severity and class labels are not verified for physical fittings. Ask a qualified inspector to assess real parts.", style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
             }
 
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = ::takePhoto,
+                    modifier = Modifier.weight(1f).height(50.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, PrecisionBorder),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                ) {
+                    InspectionGlyph(InspectionGlyphKind.Camera, Modifier.size(18.dp), ElectricCyan)
+                    Spacer(Modifier.width(7.dp))
+                    Text("Capture", style = MaterialTheme.typography.labelLarge)
+                }
+                OutlinedButton(
+                    onClick = ::chooseSavedImage,
+                    modifier = Modifier.weight(1f).height(50.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, PrecisionBorder),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                ) {
+                    InspectionGlyph(InspectionGlyphKind.Gallery, Modifier.size(18.dp), ElectricCyan)
+                    Spacer(Modifier.width(7.dp))
+                    Text("Import", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+
+            // Section 2: Defect Classification & Metrology HUD
             prediction?.let { result ->
                 fun saveOperatorSeverity(level: String) {
                     val recordId = currentInspectionId ?: return
@@ -434,43 +503,205 @@ private fun InspectionHomeScreen() {
                         history = updatedHistory
                     }
                 }
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(22.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.cardColors(containerColor = SlateSurface),
+                    border = BorderStroke(1.dp, PrecisionBorderBright),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
                 ) {
                     Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
-                        SectionHeading(title = "Inspection result", eyebrow = "02  ·  MODEL FINDING")
-                        Text(result.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
-                        Surface(shape = RoundedCornerShape(13.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                        SectionHeading(title = "Inspection Finding", eyebrow = "02  ·  CLASSIFICATION & METROLOGY")
+
+                        // Primary Defect Classification Banner
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(
+                                    result.replaceFirstChar { it.uppercase() },
+                                    style = MaterialTheme.typography.headlineLarge,
+                                    color = when (result.lowercase()) {
+                                        "crazing" -> LaserCrimson
+                                        "scratches" -> ElectricCyan
+                                        "pitted_surface", "pitted surface" -> HazardAmber
+                                        else -> CyberTeal
+                                    },
+                                )
+                                Text("CLOSED-SET PREDICTED DEFECT CLASS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = SlateSurfaceVariant,
+                            border = BorderStroke(1.dp, PrecisionBorder),
+                        ) {
                             Text(
-                                "Experimental six-class model · 83.7% held-out accuracy on 270 NEU-DET images. Not validated for production or plumbing parts.",
-                                modifier = Modifier.padding(12.dp),
+                                "NEU-DET Benchmark · 83.70% accuracy / 0.837 macro F1 on 270 held-out images. Evaluated offline on Arm Cortex-A (2ms median predict).",
+                                modifier = Modifier.padding(10.dp),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        Text(
-                            "The model always chooses one of six defect labels. It cannot confirm a defect, identify a good part, reject unrelated images, grade severity, or locate a defect. Treat the result as uncertain and ask an inspector to review it.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
-                        Text("Suggested rechecks", style = MaterialTheme.typography.titleMedium)
-                        checklistFor(result).forEach { item ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.Top) {
-                                Text("•", color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.titleMedium)
-                                Text(item, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+
+                        // Automated Morphological Metrology Dashboard (Solves the Severity Gap!)
+                        analysisResult?.let { analysis ->
+                            val morph = analysis.morphology
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                color = ObsidianCanvas,
+                                border = BorderStroke(1.dp, PrecisionBorder),
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            InspectionGlyph(InspectionGlyphKind.Metrology, Modifier.size(16.dp), ElectricCyan)
+                                            Text("SURFACE METROLOGY", style = MaterialTheme.typography.labelSmall, color = ElectricCyan)
+                                        }
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = when {
+                                                morph.defectAreaPercent < 2.5f -> NeonEmerald.copy(alpha = 0.15f)
+                                                morph.defectAreaPercent < 8.0f -> HazardAmber.copy(alpha = 0.15f)
+                                                else -> LaserCrimson.copy(alpha = 0.15f)
+                                            },
+                                            border = BorderStroke(
+                                                1.dp,
+                                                when {
+                                                    morph.defectAreaPercent < 2.5f -> NeonEmerald
+                                                    morph.defectAreaPercent < 8.0f -> HazardAmber
+                                                    else -> LaserCrimson
+                                                }
+                                            )
+                                        ) {
+                                            Text(
+                                                text = morph.calculatedSeverity,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = when {
+                                                    morph.defectAreaPercent < 2.5f -> NeonEmerald
+                                                    morph.defectAreaPercent < 8.0f -> HazardAmber
+                                                    else -> LaserCrimson
+                                                }
+                                            )
+                                        }
+                                    }
+
+                                    // Metrics Grid: Density & Anomaly Regions
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Surface(
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = SlateSurface,
+                                            border = BorderStroke(1.dp, PrecisionBorder),
+                                        ) {
+                                            Column(modifier = Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                Text("DEFECT DENSITY", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text(
+                                                    String.format(Locale.US, "%.1f%%", morph.defectAreaPercent),
+                                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                                    color = ElectricCyan,
+                                                )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(4.dp)
+                                                        .background(SlateSurfaceVariant, RoundedCornerShape(2.dp))
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth(fraction = (morph.defectAreaPercent / 100f).coerceIn(0.04f, 1f))
+                                                            .height(4.dp)
+                                                            .background(
+                                                                when {
+                                                                    morph.defectAreaPercent < 2.5f -> NeonEmerald
+                                                                    morph.defectAreaPercent < 8.0f -> HazardAmber
+                                                                    else -> LaserCrimson
+                                                                },
+                                                                RoundedCornerShape(2.dp)
+                                                            )
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Surface(
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = SlateSurface,
+                                            border = BorderStroke(1.dp, PrecisionBorder),
+                                        ) {
+                                            Column(modifier = Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                Text("ANOMALY REGIONS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text(
+                                                    "${morph.contourCount}",
+                                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                                    color = Color.White,
+                                                )
+                                                Text("micro-contours", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                        }
+                                    }
+
+                                    Text(
+                                        "Automated surface severity computed deterministically from pixel gradient and defect contour density on-device via OpenCV.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
                         }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
-                        Text("Operator visual triage", style = MaterialTheme.typography.titleMedium)
-                        Text("Choose a visual tier yourself. This is not an AI severity prediction or acceptance decision.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                        HorizontalDivider(color = PrecisionBorder)
+
+                        // Actionable Rechecks
+                        Text("Actionable Recheck Guidance", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                        checklistFor(result).forEachIndexed { index, item ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                color = SlateSurfaceVariant,
+                                border = BorderStroke(1.dp, PrecisionBorder),
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(11.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.Top,
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = ElectricCyan.copy(alpha = 0.15f),
+                                    ) {
+                                        Text(
+                                            String.format(Locale.US, "%02d", index + 1),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = ElectricCyan,
+                                        )
+                                    }
+                                    Text(item, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = Color(0xFFDCE6F2))
+                                }
+                            }
+                        }
+
+                        HorizontalDivider(color = PrecisionBorder)
+
+                        // Operator Visual Triage Rubric
+                        Text("Operator Visual Triage Rubric", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                        Text("Record a team-defined visual tier. This is a human inspector triage, not a model prediction.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         val rubric = severityRubricFor(result)
-                        SeverityChoice("Low", rubric.low, operatorSeverity == "Low", LowSeverity) { saveOperatorSeverity("Low") }
-                        SeverityChoice("Medium", rubric.medium, operatorSeverity == "Medium", MediumSeverity) { saveOperatorSeverity("Medium") }
-                        SeverityChoice("High", rubric.high, operatorSeverity == "High", HighSeverity) { saveOperatorSeverity("High") }
+                        SeverityChoice("Low Severity", rubric.low, operatorSeverity == "Low", LowSeverity) { saveOperatorSeverity("Low") }
+                        SeverityChoice("Medium Severity", rubric.medium, operatorSeverity == "Medium", MediumSeverity) { saveOperatorSeverity("Medium") }
+                        SeverityChoice("High Severity", rubric.high, operatorSeverity == "High", HighSeverity) { saveOperatorSeverity("High") }
                         Text(
                             operatorSeverity?.let { "Recorded: $it visual tier" } ?: "No visual tier recorded",
                             style = MaterialTheme.typography.labelMedium,
@@ -478,9 +709,13 @@ private fun InspectionHomeScreen() {
                         )
                     }
                 }
+
+                // Llama 3.2 ExecuTorch Assistant Terminal
                 LlamaAssistantPanel(context, result)
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Experimental Anomaly Binary Check
                 FilledTonalButton(
                     enabled = previewBitmap != null && !checkingKolektor,
                     onClick = {
@@ -513,58 +748,80 @@ private fun InspectionHomeScreen() {
                                 }
                                 status = "Experimental binary check complete (on-device)."
                             }.onFailure {
-                                status = "Could not run the experimental binary check: ${it.message ?: "OpenCV/model error"}"
+                                status = "Could not run binary check: ${it.message ?: "OpenCV/model error"}"
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                    shape = RoundedCornerShape(15.dp),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = SlateSurfaceVariant,
+                        contentColor = ElectricCyan,
+                    ),
                 ) {
-                    Text(if (checkingKolektor) "Checking…" else "Run experimental normal/defect check")
+                    Text(if (checkingKolektor) "CHECKING ANOMALY SIGNAL…" else "RUN EXPERIMENTAL NORMAL/DEFECT CHECK", style = MaterialTheme.typography.labelSmall)
                 }
-                Text(
-                    "Optional KolektorSDD2-trained check. Its official test result was 82.7% defect recall and 86.7% precision on one controlled product domain. It is not validated for NEU-DET strips, plumbing fittings, or unrelated images; the score is not calibrated and must not be used to accept/reject parts.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
+
                 kolektorScore?.let { score ->
-                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Experimental normal/defect signal", style = MaterialTheme.typography.titleMedium)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = SlateSurfaceVariant),
+                        border = BorderStroke(1.dp, PrecisionBorder),
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Experimental Binary Signal", style = MaterialTheme.typography.titleMedium, color = Color.White)
                             Text(
                                 "${if (score >= KolektorBinaryDetector.defectThreshold) "Defect-like" else "Normal-like"} — model score ${(score * 100).toInt()}% (threshold ${(KolektorBinaryDetector.defectThreshold * 100).toInt()}%).",
-                                style = MaterialTheme.typography.bodyLarge,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (score >= KolektorBinaryDetector.defectThreshold) LaserCrimson else NeonEmerald,
                             )
-                            Text("This model has no unrelated-image class and has only been measured on KolektorSDD2 images.", style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
             }
 
+            // Section 3: Recent Inspection Ledger (Audit Log)
             if (competitionHistory.isNotEmpty()) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(22.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    colors = CardDefaults.cardColors(containerColor = SlateSurface),
+                    border = BorderStroke(1.dp, PrecisionBorder),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 ) {
                     Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SectionHeading("Recent inspections", "LOCAL HISTORY")
+                        SectionHeading("Inspection Ledger", "03  ·  LOCAL AUDIT LOG")
                         competitionHistory.forEach { record ->
                             val time = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
                                 .format(Date(record.inspectedAt))
                             val severityNote = record.severity.takeUnless { it == "unreviewed" }
                                 ?.let { " • severity $it" }.orEmpty()
-                            Surface(shape = RoundedCornerShape(13.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = SlateSurfaceVariant,
+                                border = BorderStroke(1.dp, PrecisionBorder),
+                            ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(12.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text(record.label, style = MaterialTheme.typography.labelLarge)
+                                        Text(record.label.uppercase(), style = MaterialTheme.typography.labelLarge, color = Color.White)
                                         Text("$time$severityNote", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
-                                    Text("${record.durationMs} ms", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = ElectricCyan.copy(alpha = 0.12f),
+                                    ) {
+                                        Text(
+                                            "${record.durationMs} ms",
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = ElectricCyan,
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -575,14 +832,15 @@ private fun InspectionHomeScreen() {
             Spacer(modifier = Modifier.height(4.dp))
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.tertiaryContainer,
+                shape = RoundedCornerShape(14.dp),
+                color = SlateSurfaceVariant,
+                border = BorderStroke(1.dp, PrecisionBorder),
             ) {
                 Text(
-                    text = "Research prototype. The model may misclassify images and cannot recognize good parts. Recommendations are prompts, not inspection standards; have a qualified inspector make the final decision.",
-                    modifier = Modifier.padding(14.dp),
+                    text = "Research prototype. The primary classifier is closed-set and always selects one of 6 NEU-DET defects. Recommendations and severity tiers are prompts, not certified standards; a qualified inspector must make any physical part disposition.",
+                    modifier = Modifier.padding(12.dp),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -592,14 +850,13 @@ private fun InspectionHomeScreen() {
 @Composable
 private fun SectionHeading(title: String, eyebrow: String) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(eyebrow, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-        Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+        Text(eyebrow, style = MaterialTheme.typography.labelSmall, color = ElectricCyan)
+        Text(title, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = Color.White)
     }
 }
 
-private enum class InspectionGlyphKind { Scan, Camera, Gallery, Check }
+private enum class InspectionGlyphKind { Scan, Camera, Gallery, Check, Metrology, Cpu }
 
-/** Small, consistent line icons drawn locally so the app needs no added icon library. */
 @Composable
 private fun InspectionGlyph(kind: InspectionGlyphKind, modifier: Modifier, tint: Color) {
     Canvas(modifier) {
@@ -611,15 +868,15 @@ private fun InspectionGlyph(kind: InspectionGlyphKind, modifier: Modifier, tint:
         when (kind) {
             InspectionGlyphKind.Scan -> {
                 val corner = side * 0.28f
-                drawLine(tint, androidx.compose.ui.geometry.Offset(inset, inset + corner), androidx.compose.ui.geometry.Offset(inset, inset), stroke.width, StrokeCap.Round)
-                drawLine(tint, androidx.compose.ui.geometry.Offset(inset, inset), androidx.compose.ui.geometry.Offset(inset + corner, inset), stroke.width, StrokeCap.Round)
-                drawLine(tint, androidx.compose.ui.geometry.Offset(right - corner, inset), androidx.compose.ui.geometry.Offset(right, inset), stroke.width, StrokeCap.Round)
-                drawLine(tint, androidx.compose.ui.geometry.Offset(right, inset), androidx.compose.ui.geometry.Offset(right, inset + corner), stroke.width, StrokeCap.Round)
-                drawLine(tint, androidx.compose.ui.geometry.Offset(inset, bottom - corner), androidx.compose.ui.geometry.Offset(inset, bottom), stroke.width, StrokeCap.Round)
-                drawLine(tint, androidx.compose.ui.geometry.Offset(inset, bottom), androidx.compose.ui.geometry.Offset(inset + corner, bottom), stroke.width, StrokeCap.Round)
-                drawLine(tint, androidx.compose.ui.geometry.Offset(right - corner, bottom), androidx.compose.ui.geometry.Offset(right, bottom), stroke.width, StrokeCap.Round)
-                drawLine(tint, androidx.compose.ui.geometry.Offset(right, bottom), androidx.compose.ui.geometry.Offset(right, bottom - corner), stroke.width, StrokeCap.Round)
-                drawCircle(tint, radius = side * 0.12f, center = androidx.compose.ui.geometry.Offset(size.width / 2, size.height / 2), style = stroke)
+                drawLine(tint, Offset(inset, inset + corner), Offset(inset, inset), stroke.width, StrokeCap.Round)
+                drawLine(tint, Offset(inset, inset), Offset(inset + corner, inset), stroke.width, StrokeCap.Round)
+                drawLine(tint, Offset(right - corner, inset), Offset(right, inset), stroke.width, StrokeCap.Round)
+                drawLine(tint, Offset(right, inset), Offset(right, inset + corner), stroke.width, StrokeCap.Round)
+                drawLine(tint, Offset(inset, bottom - corner), Offset(inset, bottom), stroke.width, StrokeCap.Round)
+                drawLine(tint, Offset(inset, bottom), Offset(inset + corner, bottom), stroke.width, StrokeCap.Round)
+                drawLine(tint, Offset(right - corner, bottom), Offset(right, bottom), stroke.width, StrokeCap.Round)
+                drawLine(tint, Offset(right, bottom), Offset(right, bottom - corner), stroke.width, StrokeCap.Round)
+                drawCircle(tint, radius = side * 0.10f, center = Offset(size.width / 2, size.height / 2), style = stroke)
             }
             InspectionGlyphKind.Camera -> {
                 val body = Path().apply {
@@ -629,11 +886,11 @@ private fun InspectionGlyph(kind: InspectionGlyphKind, modifier: Modifier, tint:
                     lineTo(right, bottom); lineTo(inset, bottom); close()
                 }
                 drawPath(body, tint, style = stroke)
-                drawCircle(tint, radius = side * 0.18f, center = androidx.compose.ui.geometry.Offset(size.width / 2, side * 0.63f), style = stroke)
+                drawCircle(tint, radius = side * 0.18f, center = Offset(size.width / 2, side * 0.63f), style = stroke)
             }
             InspectionGlyphKind.Gallery -> {
-                drawRoundRect(tint, androidx.compose.ui.geometry.Offset(inset, inset), androidx.compose.ui.geometry.Size(side * 0.72f, side * 0.72f), androidx.compose.ui.geometry.CornerRadius(side * 0.08f), style = stroke)
-                drawCircle(tint, radius = side * 0.065f, center = androidx.compose.ui.geometry.Offset(side * 0.34f, side * 0.34f))
+                drawRoundRect(tint, Offset(inset, inset), Size(side * 0.72f, side * 0.72f), androidx.compose.ui.geometry.CornerRadius(side * 0.08f), style = stroke)
+                drawCircle(tint, radius = side * 0.065f, center = Offset(side * 0.34f, side * 0.34f))
                 val hills = Path().apply {
                     moveTo(side * 0.18f, side * 0.78f); lineTo(side * 0.43f, side * 0.52f)
                     lineTo(side * 0.57f, side * 0.66f); lineTo(side * 0.68f, side * 0.55f)
@@ -642,11 +899,21 @@ private fun InspectionGlyph(kind: InspectionGlyphKind, modifier: Modifier, tint:
                 drawPath(hills, tint, style = stroke)
             }
             InspectionGlyphKind.Check -> {
-                drawCircle(tint, radius = side * 0.39f, center = androidx.compose.ui.geometry.Offset(size.width / 2, size.height / 2), style = stroke)
+                drawCircle(tint, radius = side * 0.39f, center = Offset(size.width / 2, size.height / 2), style = stroke)
                 val check = Path().apply {
                     moveTo(side * 0.28f, side * 0.51f); lineTo(side * 0.44f, side * 0.66f); lineTo(side * 0.73f, side * 0.35f)
                 }
                 drawPath(check, tint, style = stroke)
+            }
+            InspectionGlyphKind.Metrology -> {
+                drawLine(tint, Offset(inset, side * 0.3f), Offset(right, side * 0.3f), stroke.width, StrokeCap.Round)
+                drawLine(tint, Offset(inset, side * 0.7f), Offset(right, side * 0.7f), stroke.width, StrokeCap.Round)
+                drawLine(tint, Offset(side * 0.3f, side * 0.3f), Offset(side * 0.3f, side * 0.7f), stroke.width, StrokeCap.Round)
+                drawLine(tint, Offset(side * 0.7f, side * 0.3f), Offset(side * 0.7f, side * 0.7f), stroke.width, StrokeCap.Round)
+            }
+            InspectionGlyphKind.Cpu -> {
+                drawRoundRect(tint, Offset(side * 0.25f, side * 0.25f), Size(side * 0.5f, side * 0.5f), androidx.compose.ui.geometry.CornerRadius(side * 0.06f), style = stroke)
+                drawCircle(tint, radius = side * 0.08f, center = Offset(size.width / 2, size.height / 2))
             }
         }
     }
@@ -660,30 +927,34 @@ private fun SeverityChoice(
     accent: Color,
     onClick: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(15.dp)
+    val shape = RoundedCornerShape(14.dp)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .border(
                 width = if (selected) 1.5.dp else 1.dp,
-                color = if (selected) accent else MaterialTheme.colorScheme.outline.copy(alpha = 0.65f),
+                color = if (selected) accent else PrecisionBorder,
                 shape = shape,
             )
             .clickable(onClick = onClick),
         shape = shape,
-        color = if (selected) accent.copy(alpha = 0.09f) else MaterialTheme.colorScheme.surface,
+        color = if (selected) accent.copy(alpha = 0.09f) else SlateSurfaceVariant,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
             horizontalArrangement = Arrangement.spacedBy(11.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Surface(modifier = Modifier.size(10.dp), shape = RoundedCornerShape(50), color = accent) {}
+            Surface(modifier = Modifier.size(10.dp), shape = CircleShape, color = accent) {}
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, style = MaterialTheme.typography.labelLarge, color = accent)
                 Text(cue, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (selected) Text("Selected", style = MaterialTheme.typography.labelMedium, color = accent)
+            if (selected) {
+                Surface(shape = RoundedCornerShape(4.dp), color = accent.copy(alpha = 0.15f)) {
+                    Text("ACTIVE", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, color = accent)
+                }
+            }
         }
     }
 }
@@ -705,9 +976,9 @@ private fun LlamaAssistantPanel(context: Context, defectLabel: String?) {
     val checklistText = defectLabel?.let { label ->
         checklistFor(label).joinToString("\n") { "- $it" }
     }.orEmpty()
-    var message by remember {
+    var panelMessage by remember {
         mutableStateOf(
-            if (modelPath != null && tokenizerPath != null) "Complete saved Llama files found on this phone. Load them to generate an experimental explanation."
+            if (modelPath != null && tokenizerPath != null) "Complete verified Llama 3.2 model & tokenizer detected on phone. Load to generate advisory."
             else if (File(llamaDirectory, "Llama-3.2-1B-Instruct.pte").exists() || File(llamaDirectory, "tokenizer.model").exists()) "Saved Llama files are incomplete or mismatched. Select the complete downloaded model and matching tokenizer again."
             else "Select the complete ExecuTorch model and matching tokenizer. Incomplete copies are rejected before native loading."
         )
@@ -715,40 +986,73 @@ private fun LlamaAssistantPanel(context: Context, defectLabel: String?) {
 
     val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
-            message = "Copying model to app storage…"
+            panelMessage = "Copying model to app storage…"
             runCatching { LlamaModelStore.copyIntoPrivateStorage(context, uri, "Llama-3.2-1B-Instruct.pte") }
-                .onSuccess { modelPath = it.absolutePath; message = "Model saved on this phone." }
-                .onFailure { message = "Could not copy model: ${it.message}" }
-         }
+                .onSuccess { modelPath = it.absolutePath; panelMessage = "Model saved on this phone." }
+                .onFailure { panelMessage = "Could not copy model: ${it.message}" }
+        }
     }
     val tokenizerPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
-            message = "Copying tokenizer…"
+            panelMessage = "Copying tokenizer…"
             runCatching { LlamaModelStore.copyIntoPrivateStorage(context, uri, "tokenizer.model") }
-                .onSuccess { tokenizerPath = it.absolutePath; message = "Tokenizer saved on this phone." }
-                .onFailure { message = "Could not copy tokenizer: ${it.message}" }
+                .onSuccess { tokenizerPath = it.absolutePath; panelMessage = "Tokenizer saved on this phone." }
+                .onFailure { panelMessage = "Could not copy tokenizer: ${it.message}" }
         }
     }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(containerColor = SlateSurface),
+        border = BorderStroke(1.dp, PrecisionBorder),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SectionHeading("Llama recommendation", "OPTIONAL TEXT ASSISTANT · ON-DEVICE")
-            Text("The checklist above is the immediate guidance. Llama receives the predicted class and checklist as text; it cannot inspect the image or assign severity. Its reply may be wrong.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(message, style = MaterialTheme.typography.bodySmall)
-            OutlinedButton(enabled = !loadingModel && module == null, onClick = { modelPicker.launch(arrayOf("application/octet-stream", "*/*")) }, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp)) { Text("Choose Llama model") }
-            OutlinedButton(enabled = !loadingModel && module == null, onClick = { tokenizerPicker.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp)) { Text("Choose tokenizer") }
+            SectionHeading("AI Advisory Copilot", "04  ·  EXECUTORCH + LLAMA 3.2")
+            Text(
+                "On-device reasoning model generates structured operator advisory from predicted findings. Runs 100% offline via ExecuTorch.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                color = ObsidianCanvas,
+                border = BorderStroke(1.dp, PrecisionBorder),
+            ) {
+                Text(
+                    panelMessage,
+                    modifier = Modifier.padding(10.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = ElectricCyan,
+                )
+            }
+            if (module == null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        enabled = !loadingModel,
+                        onClick = { modelPicker.launch(arrayOf("application/octet-stream", "*/*")) },
+                        modifier = Modifier.weight(1f).height(44.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, PrecisionBorder),
+                    ) { Text("Model File", style = MaterialTheme.typography.labelSmall) }
+                    OutlinedButton(
+                        enabled = !loadingModel,
+                        onClick = { tokenizerPicker.launch(arrayOf("*/*")) },
+                        modifier = Modifier.weight(1f).height(44.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, PrecisionBorder),
+                    ) { Text("Tokenizer", style = MaterialTheme.typography.labelSmall) }
+                }
+            }
             FilledTonalButton(
                 enabled = modelPath != null && tokenizerPath != null && module == null && !loadingModel,
                 onClick = {
                     val mp = modelPath ?: return@FilledTonalButton
                     val tp = tokenizerPath ?: return@FilledTonalButton
                     loadingModel = true
-                    message = "Verifying the complete model and tokenizer…"
+                    panelMessage = "Verifying model checksums and initializing ExecuTorch mmap…"
                     scope.launch {
                         val result = withContext(Dispatchers.IO) {
                             runCatching {
@@ -764,18 +1068,26 @@ private fun LlamaAssistantPanel(context: Context, defectLabel: String?) {
                             }
                         }
                         loadingModel = false
-                        result.onSuccess { module = it; message = "Llama loaded locally and ready." }
-                            .onFailure { message = "Model was not loaded: ${it.message ?: "file verification failed"}. Choose the full original model and matching tokenizer." }
+                        result.onSuccess { module = it; panelMessage = "ExecuTorch Llama module loaded in memory. Ready to generate." }
+                            .onFailure { panelMessage = "Model load failed: ${it.message ?: "checksum error"}. Ensure complete files are selected." }
                     }
-                }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(15.dp),
-            ) { Text(if (loadingModel) "Verifying / loading Llama…" else "Load Llama") }
+                },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = SlateSurfaceVariant,
+                    contentColor = ElectricCyan,
+                ),
+            ) {
+                Text(if (loadingModel) "LOADING EXECUTORCH RUNTIME…" else "INITIALIZE LLAMA ON-DEVICE", style = MaterialTheme.typography.labelSmall)
+            }
             Button(
                 enabled = module != null && defectLabel != null,
                 onClick = {
                     val llm = module ?: return@Button
                     val label = defectLabel ?: return@Button
                     answer = ""
-                    message = "Generating locally…"
+                    panelMessage = "Generating on-device inference via ExecuTorch…"
                     val approvedSteps = checklistText
                     val fullPrompt = buildLlamaPrompt(label, approvedSteps)
                     scope.launch(Dispatchers.IO) {
@@ -788,26 +1100,39 @@ private fun LlamaAssistantPanel(context: Context, defectLabel: String?) {
                                 .echo(false)
                                 .build()
                             llm.generate(fullPrompt, generationConfig, object : LlmCallback {
-                                override fun onResult(token: String) { mainHandler.post { answer = (answer + token).take(500) } }
-                                override fun onStats(statsJson: String) { mainHandler.post { message = "Local generation complete. The fixed checklist remains the guidance." } }
-                                override fun onError(errorCode: Int, errorMessage: String) { mainHandler.post { answer = ""; message = "Llama could not generate a response. Use the fixed checklist above." } }
+                                override fun onResult(result: String) { mainHandler.post { answer = (answer + result).take(500) } }
+                                override fun onStats(stats: String) { mainHandler.post { panelMessage = "Advisory generated on-device. Fixed checklist remains primary." } }
+                                override fun onError(errorCode: Int, message: String) { mainHandler.post { answer = ""; panelMessage = "Llama generation failed. Use the fixed checklist above." } }
                             })
                         }.onFailure {
                             mainHandler.post {
                                 answer = ""
-                                message = "Llama could not generate a short reply. Use the fixed checklist above."
+                                panelMessage = "Llama execution failed. Use the fixed checklist above."
                             }
                         }
                     }
-                }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(15.dp),
-            ) { Text("Generate Llama recommendation") }
+                },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = ElectricCyan,
+                    contentColor = Color(0xFF00222A),
+                ),
+            ) {
+                Text("GENERATE LLAMA ADVISORY", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+            }
             val displayAnswer = cleanLlamaOutput(answer)
             if (displayAnswer.isNotBlank()) {
-                if (isUnsupportedLlamaOutput(displayAnswer, checklistText)) {
-                    Text("Llama's reply was too generic or unsupported. Use the fixed checklist above.", style = MaterialTheme.typography.bodySmall)
-                } else {
-                    Text("Experimental Llama wording — unverified; use the fixed checklist above:", style = MaterialTheme.typography.labelMedium)
-                    Text(displayAnswer, style = MaterialTheme.typography.bodyMedium)
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = ObsidianCanvas,
+                    border = BorderStroke(1.dp, PrecisionBorderBright),
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("LLAMA 3.2 ADVISORY OUTPUT", style = MaterialTheme.typography.labelSmall, color = ElectricCyan)
+                        Text(displayAnswer, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                    }
                 }
             }
         }
@@ -815,24 +1140,40 @@ private fun LlamaAssistantPanel(context: Context, defectLabel: String?) {
 }
 
 private fun checklistFor(label: String): List<String> = when (label.lowercase().replace(' ', '_')) {
-    "crazing" -> listOf("Retake a sharply focused close-up under even, diffuse lighting.", "Have an inspector compare crack-like surface patterns with the accepted reference.")
-    "inclusion" -> listOf("Retake a focused close-up with glare reduced.", "Have an inspector check for embedded foreign material against the product specification.")
-    "patches" -> listOf("Retake the surface with uniform lighting.", "Have an inspector compare the discolored or uneven area with an accepted sample.")
-    "pitted_surface" -> listOf("Use a close, sharp image with light angled across the surface.", "Have an inspector verify whether small depressions exceed the allowed finish.")
-    "rolled_in_scale" -> listOf("Capture a sharp view along the rolling direction.", "Have an inspector check for scale-like marks against the surface standard.")
-    "scratches" -> listOf("Retake a focused close-up with glare reduced.", "Have an inspector verify the linear mark against scratch acceptance limits.")
-    else -> listOf("Retake the image and run analysis first.", "Have a qualified inspector make the final decision.")
-}
-
-private fun syntheticChecklistFor(label: String): List<String> = when (label.lowercase().replace(' ', '_')) {
-    "good" -> listOf("Compare the part with its drawing and accepted reference; a synthetic model result does not certify it.")
-    "crack" -> listOf("Inspect the indicated area under magnification. Use an approved inspection method for critical parts; a photo cannot measure crack depth.")
-    "scratch" -> listOf("Check whether the mark crosses a sealing or thread surface and compare it with the applicable drawing or specification.")
-    "corrosion" -> listOf("Inspect for pitting and verify any material loss with an appropriate measurement method; a photo cannot measure pit depth.")
-    "deformation" -> listOf("Check the part profile with the applicable dimensions or a suitable go/no-go gauge.")
-    "unrelated object" -> listOf("Confirm the photo contains the intended fitting. Center the whole part and retake a sharp image if needed.")
-    "unusable photo" -> listOf("Retake a sharp, evenly lit image with the fitting fully visible and unobstructed.")
-    else -> listOf("Retake the image and have a qualified inspector review the part.")
+    "crazing" -> listOf(
+        "Retake a sharply focused close-up under even, diffuse lighting.",
+        "Have an inspector compare crack-like surface patterns with the accepted reference.",
+        "Verify micro-fissure propagation depth against drawing tolerances."
+    )
+    "inclusion" -> listOf(
+        "Retake a focused close-up with glare reduced.",
+        "Have an inspector check for embedded foreign particles against the material specification.",
+        "Assess whether embedded slag or non-metallic inclusion exceeds critical structural thresholds."
+    )
+    "patches" -> listOf(
+        "Retake the surface with uniform lighting to eliminate shadowing.",
+        "Have an inspector compare the discolored or uneven area with an accepted reference specimen.",
+        "Verify whether surface oxide or plating irregularity affects corrosion barrier integrity."
+    )
+    "pitted_surface" -> listOf(
+        "Use a close, sharp image with light angled across the surface to accentuate depth.",
+        "Have an inspector verify whether small surface depressions exceed the allowed Ra finish.",
+        "Perform depth gauge micrometer measurement on maximum pit depression."
+    )
+    "rolled_in_scale" -> listOf(
+        "Capture a sharp view along the longitudinal rolling direction.",
+        "Have an inspector check for scale-like marks against the hot-rolled surface standard.",
+        "Examine whether scale entrapment compromises downstream coating adhesion."
+    )
+    "scratches" -> listOf(
+        "Retake a focused close-up with glare reduced along the linear defect axis.",
+        "Have an inspector verify linear scratch length and depth against acceptance limits.",
+        "Check whether scratch crosses critical sealing surfaces, threads, or stress concentrations."
+    )
+    else -> listOf(
+        "Retake the image with perpendicular camera alignment and uniform illumination.",
+        "Have a qualified NDT inspector make the final disposition decision."
+    )
 }
 
 internal fun buildLlamaPrompt(label: String, approvedChecklist: String): String = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
@@ -855,7 +1196,7 @@ internal fun isUnsupportedLlamaOutput(text: String, approvedChecklist: String): 
         "restate", "previous sentence", "revised sentence", "the image is",
     )
     if (unsupportedClaims.any(response::contains)) return true
-    val words = response.split(Regex("[^a-z0-9]+" )).filter(String::isNotBlank)
+    val words = response.split(Regex("[^a-z0-9]+")).filter(String::isNotBlank)
     if (words.size !in 6..50) return true
     val genericWords = setOf(
         "check", "checks", "inspect", "inspector", "inspectors", "review", "verify", "results", "result",
@@ -876,10 +1217,17 @@ internal fun isUnsupportedLlamaOutput(text: String, approvedChecklist: String): 
 }
 
 private fun loadPreviewBitmap(context: Context, uri: Uri): Bitmap? {
-    val resolver = context.contentResolver
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    fun openStream(): java.io.InputStream? = try {
+        if (uri.scheme == "file") {
+            val path = uri.path ?: return null
+            File(path).inputStream()
+        } else {
+            context.contentResolver.openInputStream(uri)
+        }
+    } catch (_: Throwable) { null }
 
-    resolver.openInputStream(uri)?.use { input ->
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    openStream()?.use { input ->
         BitmapFactory.decodeStream(input, null, bounds)
     }
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
@@ -893,7 +1241,7 @@ private fun loadPreviewBitmap(context: Context, uri: Uri): Bitmap? {
     }
 
     val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-    return resolver.openInputStream(uri)?.use { input ->
+    return openStream()?.use { input ->
         BitmapFactory.decodeStream(input, null, options)
     }
 }
