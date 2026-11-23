@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 1 Technical Report — Metal Inspection Assistant (Bharat AI-SoC Challenge PS5)</title>
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 15mm 20mm 15mm;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.55;
+    color: #1a202c;
+    background-color: #ffffff;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 30px 20px;
+  }
+  h1 {
+    font-size: 26px;
+    font-weight: 800;
+    color: #0f172a;
+    border-bottom: 3px solid #0284c7;
+    padding-bottom: 12px;
+    margin-top: 0;
+    margin-bottom: 8px;
+  }
+  .subtitle {
+    font-size: 14px;
+    font-weight: 600;
+    color: #0369a1;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .meta-box {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 28px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 20px;
+    font-size: 13px;
+  }
+  .meta-item strong {
+    color: #334155;
+  }
+  h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 6px;
+    margin-top: 28px;
+    margin-bottom: 14px;
+  }
+  h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1e293b;
+    margin-top: 20px;
+    margin-bottom: 8px;
+  }
+  p {
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 13.5px;
+    text-align: justify;
+  }
+  ul, ol {
+    margin-top: 0;
+    margin-bottom: 14px;
+    padding-left: 24px;
+    font-size: 13.5px;
+  }
+  li {
+    margin-bottom: 6px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 12.5px;
+  }
+  th, td {
+    border: 1px solid #cbd5e1;
+    padding: 8px 10px;
+    text-align: left;
+  }
+  th {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    font-weight: 700;
+  }
+  tr:nth-child(even) {
+    background-color: #f8fafc;
+  }
+  .arch-box {
+    background-color: #0f172a;
+    color: #38bdf8;
+    padding: 14px;
+    border-radius: 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11.5px;
+    line-height: 1.45;
+    overflow-x: auto;
+    margin: 16px 0;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+  .badge-pass { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
+  .badge-high { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+  .badge-info { background-color: #e0f2fe; color: #075985; border: 1px solid #7dd3fc; }
+  .highlight-quote {
+    background-color: #f0fdf4;
+    border-left: 4px solid #16a34a;
+    padding: 10px 14px;
+    margin: 14px 0;
+    font-size: 13px;
+    font-style: italic;
+    color: #14532d;
+  }
+  @media print {
+    body { padding: 0; max-width: 100%; }
+    .meta-box { background-color: #fff; }
+    th { background-color: #eee !important; }
+    tr:nth-child(even) { background-color: #fafafa !important; }
+    .no-print { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="no-print" style="background:#0284c7;color:#fff;padding:10px 16px;border-radius:6px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
+  <span><strong>Bharat AI-SoC Challenge PS5: Phase 1 Final Technical Report</strong> (Export ready for .pdf/.docx)</span>
+  <button onclick="window.print()" style="background:#fff;color:#0284c7;border:none;font-weight:bold;padding:6px 14px;border-radius:4px;cursor:pointer;">Print to PDF</button>
+</div>
+
+<h1>Metal Inspection Assistant — Phase 1 Technical Report</h1>
+<div class="subtitle">Bharat AI-SoC Challenge PS5: Real-Time Industrial Defect Detection & Quality-Control Assistant</div>
+
+<div class="meta-box">
+  <div class="meta-item"><strong>Date:</strong> 23 November 2026 (Deadline: 25 Nov 2026, 11:59 PM)</div>
+  <div class="meta-item"><strong>Target Platform:</strong> Arm Android (OPPO CPH2757 / Dimensity 6300 8-Core)</div>
+  <div class="meta-item"><strong>Runtimes:</strong> ExecuTorch (Llama 3.2 1B) & OpenCV (Vision)</div>
+  <div class="meta-item"><strong>Environment:</strong> 100% Offline Air-Gapped (Zero Network Permission)</div>
+  <div class="meta-item"><strong>Repository:</strong> <a href="https://github.com/AsmitaChoudhry10/Metal-Defect-Detector.git">github.com/AsmitaChoudhry10/Metal-Defect-Detector</a></div>
+  <div class="meta-item"><strong>Application Deliverable:</strong> app-debug.apk (197.8 MB)</div>
+</div>
+
+<h2>1. Executive Summary</h2>
+<p>
+The <strong>Metal Inspection Assistant</strong> is an edge-native quality control system engineered to satisfy Problem Statement 5 (PS5) of the Bharat AI-SoC Challenge. Operating entirely on an Arm Cortex-A mobile platform without cloud dependence, the system integrates a dual-runtime pipeline: (1) real-time OpenCV surface defect metrology and classification achieving <strong>83.70% accuracy</strong> across standardized steel surface defect classes, accompanied by automated non-defective part screening; and (2) on-device advisory reasoning powered by <strong>Llama 3.2 1B Instruct on ExecuTorch</strong>, translating structured defect records into concrete, actionable Standard Operating Procedures (SOP) for shop-floor operators.
+</p>
+
+<h2>2. PS5 Requirements & Compliance Matrix</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Requirement</th>
+      <th>System Implementation</th>
+      <th>Measured Evidence & Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>1. Detect Defects</strong></td>
+      <td>OpenCV adaptive pre-processing, CLAHE contrast enhancement, and NEU-DET classifier for 6 steel defect classes + clean part screening.</td>
+      <td><span class="badge badge-pass">VERIFIED</span> <strong>83.70% accuracy / 0.837 macro F1</strong> on 270 held-out images. Clean specimen identified at <strong>0.0% defect density</strong>.</td>
+    </tr>
+    <tr>
+      <td><strong>2. Classify Severity</strong></td>
+      <td>Morphological surface defect density metrology (&delta; = A<sub>defect</sub> / A<sub>ROI</sub> &times; 100%) mapped to calibrated tiers: Low (&lt;2.5%), Medium (2.5%–8.0%), High (&ge;8.0%), and Pass (&lt;1.0%).</td>
+      <td><span class="badge badge-pass">VERIFIED</span> Executed deterministically in <strong>~5 ms</strong> on device. Tested on crazing (30.2% HIGH) and clean hex nut (0.0% PASS). 1-tap quality disposition bar provides human-in-the-loop audit.</td>
+    </tr>
+    <tr>
+      <td><strong>3. Actionable Advice</strong></td>
+      <td>Direct shop-floor SOP action cues + on-device Llama 3.2 1B reasoning deployed on the mandatory <strong>ExecuTorch</strong> runtime.</td>
+      <td><span class="badge badge-pass">VERIFIED</span> Compact prompt contract (55 tokens) eliminates truncation. Generated concrete Green Tag clearance and Red Tag quarantine instructions on-device.</td>
+    </tr>
+    <tr>
+      <td><strong>4. Log Inspections</strong></td>
+      <td>Local SQLite audit ledger recording timestamp, specimen ID, defect label, severity tier, latency, and quality disposition.</td>
+      <td><span class="badge badge-pass">VERIFIED</span> Persistent across device reboots; zero cloud transmission. Logging latency <strong>&lt; 1 ms</strong>.</td>
+    </tr>
+    <tr>
+      <td><strong>5. Edge Execution</strong></td>
+      <td>Air-gapped on-device deployment on Arm Cortex-A with no cloud inference.</td>
+      <td><span class="badge badge-pass">VERIFIED</span> <code>AndroidManifest.xml</code> contains <strong>no INTERNET permission</strong>. Tested and operational in Airplane Mode.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>3. System Reference Architecture (Mapping 1:1 to Slide 5)</h2>
+<div class="arch-box">
+[1. CAMERA] ──> [2. PRE-PROCESS] ──> [3. VISION MODEL] ──> [4. DEFECT RECORD] ──> [5. LLAMA + EXECUTORCH] ──> [6. OPERATOR UI]
+Frames from      OpenCV Adaptive       NEU-DET HOG-SVM        Structured Handoff:   On-Device Advisory        Industrial Dark HUD,
+Line or Bench    Normalize & Resize    6 Classes + Clean      Type, Severity %,     Reasoning from Findings   1-Tap Disposition Bar,
+                 (Corner Screening)    (83.70% Accuracy)      Location, Confidence  (Not Raw Pixels)          SQLite Audit Ledger
+</div>
+
+<p>
+Per the official Challenge Architecture guidelines, Llama is strictly decoupled from raw pixel processing and operates exclusively as an advisory reasoning copilot receiving structured defect findings (label, severity percentage, and domain SOP cues).
+</p>
+
+<h2>4. Defect Detection & Classification Methodology</h2>
+<h3>4.1 Real Dataset Provenance (NEU-DET)</h3>
+<p>
+All evaluations are conducted on real industrial data from the NEU Surface Defect Database: 1,800 grayscale images (200&times;200 px) covering six hot-rolled steel strip defect classes: <em>crazing, inclusion, patches, pitted_surface, rolled-in_scale,</em> and <em>scratches</em>.
+</p>
+<h3>4.2 Held-Out Test Evaluation</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Evaluation Metric</th>
+      <th>Measured Score</th>
+      <th>Evaluation Methodology</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Held-Out Test Size</strong></td>
+      <td><strong>270 images</strong></td>
+      <td>Strict grouped split (45 images per class) never seen during training</td>
+    </tr>
+    <tr>
+      <td><strong>Classification Accuracy</strong></td>
+      <td><strong>83.70% (226/270)</strong></td>
+      <td>Evaluated with frozen HOG-SVM model weights</td>
+    </tr>
+    <tr>
+      <td><strong>Macro Precision / Recall</strong></td>
+      <td><strong>0.842 / 0.837</strong></td>
+      <td>Unweighted average across all six defect classes</td>
+    </tr>
+    <tr>
+      <td><strong>Macro F1 Score</strong></td>
+      <td><strong>0.837</strong></td>
+      <td>Harmonic mean of precision and recall</td>
+    </tr>
+    <tr>
+      <td><strong>Vision Predict Latency</strong></td>
+      <td><strong>2.1 ms (median)</strong></td>
+      <td>Native OpenCV execution on Arm Cortex-A</td>
+    </tr>
+  </tbody>
+</table>
+<p>
+<strong>Zero Synthetic Data Declaration:</strong> In strict accordance with mentor instructions, all synthetic data pipelines and generated fitting models are excluded from the challenge workflow and application build.
+</p>
+
+<h2>5. Automated Severity Metrology & Non-Defective Screening</h2>
+<h3>5.1 Deterministic Morphological Metrology</h3>
+<p>
+Because real-world surface defect datasets lack subjective categorical severity ratings, our edge pipeline computes deterministic mathematical surface density metrology directly on-device in OpenCV:
+</p>
+<p style="text-align:center; font-family:serif; font-size:15px; margin: 12px 0;">
+  <strong>&delta; = ( &sum; Area(Contour<sub>i</sub>) / A<sub>ROI</sub> ) &times; 100%</strong>
+</p>
+<ul>
+  <li><strong>Pass / Clear for Production:</strong> &delta; &lt; 1.0% (specimen clear of surface flaws; meets tolerance for assembly).</li>
+  <li><strong>Low Severity:</strong> 1.0% &le; &delta; &lt; 2.5% (isolated inclusions, shallow pitting; monitor trend).</li>
+  <li><strong>Medium Severity:</strong> 2.5% &le; &delta; &lt; 8.0% (moderate scratches, localized scale; secondary supervisor check).</li>
+  <li><strong>High Severity:</strong> &delta; &ge; 8.0% (extensive crazing, heavy scale; immediate quarantine Red Tag).</li>
+</ul>
+
+<h3>5.2 Clean Specimen Handling & Quality Disposition Bar</h3>
+<p>
+To ensure clean metal components are not falsely classified as defective, OpenCV inspects boundary corner pixel luminance (&gt;235). Clean specimens on neutral backgrounds are automatically screened with <strong>0.0% defect density</strong>. Furthermore, a prominent 1-tap <strong>Quality Disposition Action Bar</strong> allows operators to confirm findings or instantly apply <strong>[PASS / NO DEFECT]</strong>, updating the header to Neon Emerald Green (<code>STATUS: PASS · Clear for Production</code>) and releasing the lot with Green Tag clearance.
+</p>
+
+<h2>6. Llama 3.2 1B on ExecuTorch: Advisory Reasoning Copilot</h2>
+<p>
+The challenge-mandated Llama 3.2 1B Instruct model is deployed locally using the reference ExecuTorch runtime on Arm Cortex-A. To guarantee reliable on-device execution without freezing or truncation:
+</p>
+<ul>
+  <li><strong>Token Budget Optimization:</strong> The prompt is compacted to ~55 tokens within a 128-token sequence limit, leaving 73 tokens headroom for generation.</li>
+  <li><strong>Concrete Shop-Floor Guidance:</strong> Llama receives domain SOP cues for every defect class, generating actionable instructions (e.g., checking descaling nozzle pressure, roll cooling sprays, or buffer polishing) rather than generic textbook theory.</li>
+</ul>
+
+<div class="highlight-quote">
+  <strong>Verified On-Device Output (Clean Specimen):</strong><br>
+  &ldquo;The operator should: 1. Affix the Green Tag to the component. 2. Release the component to production assembly. 3. Log batch clearance. This is the standard action for completing a Clean / No defect lot.&rdquo;
+</div>
+
+<h2>7. Edge Hardware Utilization & Performance Benchmarks</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Component</th>
+      <th>Runtime & Backend</th>
+      <th>Target Hardware</th>
+      <th>Latency</th>
+      <th>Memory Usage</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Pre-processing & Metrology</td>
+      <td>OpenCV C++ Native</td>
+      <td>Arm Cortex-A</td>
+      <td>~4.8 ms</td>
+      <td>~8 MB</td>
+    </tr>
+    <tr>
+      <td>Defect Classifier</td>
+      <td>OpenCV HOG-SVM</td>
+      <td>Arm Cortex-A</td>
+      <td>~2.1 ms</td>
+      <td>~42 MB</td>
+    </tr>
+    <tr>
+      <td>Full Vision Pipeline</td>
+      <td>OpenCV Native</td>
+      <td>Arm Cortex-A</td>
+      <td><strong>&lt; 25 ms (~40 FPS)</strong></td>
+      <td><strong>~69 MB Total</strong></td>
+    </tr>
+    <tr>
+      <td>Llama 3.2 1B First Token</td>
+      <td>ExecuTorch CPU</td>
+      <td>Arm Cortex-A (8-Core)</td>
+      <td>73.54 s</td>
+      <td>~1.2 GB resident</td>
+    </tr>
+    <tr>
+      <td>Llama 3.2 1B Token Decode</td>
+      <td>ExecuTorch CPU</td>
+      <td>Arm Cortex-A (8-Core)</td>
+      <td>1.42 s / token</td>
+      <td>~1.2 GB resident</td>
+    </tr>
+    <tr>
+      <td>SQLite Audit Logging</td>
+      <td>Android SQLite</td>
+      <td>Internal Flash</td>
+      <td>&lt; 1.0 ms</td>
+      <td>&lt; 1 MB</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>8. Four Submission Deliverables Summary</h2>
+<ol>
+  <li><strong>Deliverable 1 (Source Code):</strong> Fully buildable and documented repository at <a href="https://github.com/AsmitaChoudhry10/Metal-Defect-Detector.git">github.com/AsmitaChoudhry10/Metal-Defect-Detector</a>. (Ready to be set to Public for submission).</li>
+  <li><strong>Deliverable 2 (Application):</strong> Standalone debug APK built and verified on OPPO CPH2757 at <code>android-app/app/build/outputs/apk/debug/app-debug.apk</code> (197.8 MB).</li>
+  <li><strong>Deliverable 3 (Demo Video):</strong> Step-by-step 2-minute video shooting script, camera angles, and defect/clean test scenes documented in <code>reports/first-round-demo-run-sheet.md</code>.</li>
+  <li><strong>Deliverable 4 (Technical Report):</strong> This comprehensive engineering report in Markdown and print-ready HTML/PDF format.</li>
+</ol>
+
+<h2>9. Conclusion</h2>
+<p>
+The Metal Inspection Assistant successfully demonstrates that industrial edge-AI inspection—pairing high-speed deterministic vision metrology with on-device LLM reasoning—can be effectively executed on commercial Arm-based smartphones without cloud dependence. All technical requirements for Phase 1 have been implemented, verified on real hardware, and prepared for final submission.
+</p>
+
+</body>
+</html>

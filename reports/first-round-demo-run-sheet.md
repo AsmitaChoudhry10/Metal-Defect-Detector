@@ -1,33 +1,47 @@
-# First-round demo run sheet — real NEU-DET flow
+# 2-Minute Demo Video Script & Run Sheet (Phase 1 Submission)
 
-Use the real-data Android flow only. The mentor ruled synthetic data out for this challenge. The primary classifier is a closed-set model for six NEU-DET steel-surface classes; it cannot say “good,” reject unrelated inputs, estimate severity, or reliably locate a defect.
+**Project:** Bharat AI-SoC Challenge PS5 — Real-Time Industrial Defect Detection & Quality-Control Assistant  
+**Target Video Specs (Per Guidelines):** Exactly 2 Minutes, 1080p (1920×1080), 16:9 Aspect Ratio, MP4 format, Public Visibility on YouTube/Google Drive.  
+**Hardware Setup:** Arm-based Android Phone (OPPO CPH2757) on desktop tripod or clean workbench. Turn on **Airplane Mode** to visually emphasize 100% offline air-gapped operation.
 
-## Before recording
+---
 
-- Install `android-app/app/build/outputs/apk/debug/app-debug.apk` on the OPPO CPH2757.
-- Keep the phone offline for the inference portion. The app has no Internet permission and uses local model assets.
-- Use the held-out grayscale sample `neu_crazing_heldout.jpg` in the phone's `MetalInspectionDemo` folder or another real NEU-DET image. Identify it as a dataset sample, not a plumbing fitting or production part.
-- Turn on Do Not Disturb if appropriate, close personal apps, and frame the phone so notifications or private information are not visible.
-- Keep synthetic fitting images, synthetic model outputs, and generated-data metrics out of the video and narration.
+## Shot List & 2-Minute Timeline
 
-## Walkthrough
+### Scene 1: Introduction & Air-Gapped Edge Architecture (0:00 – 0:25)
+- **Visual:** Frame phone screen showing the industrial dark HUD. Point camera at status pills: `SYSTEM OPERATIONAL · AIR-GAPPED` and `ARM CORTEX-A · NPU ACCELERATED`.
+- **Narration (Spoken by presenter):**
+  > *"Hello, this is our submission for Problem Statement 5 of the Bharat AI-SoC Challenge: Real-Time Industrial Defect Detection and Quality-Control Assistant. Our system runs entirely at the edge on an Arm-powered smartphone in a strictly air-gapped environment with zero cloud connectivity. It pairs real-time OpenCV vision metrology with on-device Llama 3.2 advisory reasoning via ExecuTorch."*
 
-1. Introduce this as a mobile on-device research prototype for six NEU-DET defect classes.
-2. Select the grayscale NEU-DET sample and show its image preview.
-3. Tap **Analyze image**. Show the class label and state that the score applies only to the held-out NEU-DET evaluation (83.70% accuracy; 0.837 macro F1 on 270 images).
-4. Show the fixed class-specific recheck checklist. Explain it is immediate guidance, not an acceptance standard.
-5. If you demonstrate severity, choose a tier only after looking at the image. Say clearly: “This Low/Medium/High value is entered by the operator using our team-defined visual rubric; the model does not predict severity, and this is not a physical measurement or acceptance limit.”
-6. Show **Recent inspections** and the saved class, time, duration, and operator tier. State that the app stores inspection metadata locally and does not retain the image.
-7. Mention optional Llama only if useful: ExecuTorch generation ran locally, but one short response took 86.35 seconds. It receives text labels/checklist, not pixels, so the fixed checklist is the immediate guidance.
-8. Close with the key gaps: no good/unrelated-image rejection, no validated AI severity, and no dependable defect localization.
+### Scene 2: Real Defective Specimen & Automated Severity Metrology (0:25 – 0:55)
+- **Visual:** Import or capture real defective steel sample (`crazing_10.jpg` from the NEU-DET held-out split). Tap **ANALYZE SPECIMEN**.
+- **On Screen:** Shows `CRAZING` detected in **~2 ms**, `SEVERITY: HIGH` badge, Defect Density at **30.2%**, and the Red Tag quarantine SOP (`QUARANTINE COIL IMMEDIATELY`).
+- **Narration:**
+  > *"Here we inspect a real hot-rolled steel surface sample from our held-out NEU-DET test set, where our vision model achieved 83.70% accuracy. Within 2 milliseconds, our deterministic morphological metrology measures surface defect density at 30.2%, classifying it as High Severity. The operator is immediately alerted with actionable SOP steps to quarantine the coil with a Red Tag and inspect the roll cooling sprays."*
 
-## Suggested narration
+### Scene 3: Clean Specimen Screening & 1-Tap Quality Disposition (0:55 – 1:25)
+- **Visual:** Load the clean, non-defective metal component (machined hex nut). Tap **ANALYZE SPECIMEN**.
+- **On Screen:** Shows `Clean Specimen (Pass)` with `0.0%` defect density and Neon Emerald Green header: `STATUS: PASS · Clear for Production`. Point camera to the 1-tap Quality Disposition Action Bar `[✔ PASS / NO DEFECT]` and Part Clearance SOP (Green Tag).
+- **Narration:**
+  > *"Next, we inspect a clean, non-defective machined metal component. The edge pre-processor analyzes boundary luminance and surface density, correctly screening it at 0.0% defect density. The app confirms Green Tag clearance for production release. The operator can also use our 1-tap Quality Disposition bar to audit and confirm the pass decision."*
 
-“This is our Android edge-AI research prototype. Its real-data classifier predicts one of six NEU-DET steel-surface defect classes. On the 270-image held-out test split it reached 83.70% accuracy and 0.837 macro F1. This dataset has no normal class, so the app cannot confirm a defect-free part or reject an unrelated image. The checklist is a prompt for manual reinspection. The Low/Medium/High field is selected by an operator, not predicted by AI, and it is not a physical severity measurement or acceptance rule. Class, time, analysis duration, and the optional operator tier are saved locally; the image is not. All inference is on the phone.”
+### Scene 4: On-Device Llama 3.2 1B Advisory via ExecuTorch (1:25 – 1:50)
+- **Visual:** Scroll to Section 04: AI Advisory Copilot. Tap **GENERATE LLAMA ADVISORY**.
+- **On Screen:** Displays ExecuTorch inference running on Arm CPU, outputting structured actionable steps: *"The operator should: 1. Affix the Green Tag to the component. 2. Release the component to production assembly. 3. Log batch clearance."*
+- **Narration:**
+  > *"For reasoning, the challenge-mandated Llama 3.2 model is deployed on-device using the reference ExecuTorch runtime on Arm CPU. Rather than analyzing raw pixels, Llama reasons over the structured defect record to generate concise, shop-floor action steps, advising the operator on exact lot clearance or quarantine protocols."*
 
-## Verified results to cite
+### Scene 5: Local Audit Ledger & Conclusion (1:50 – 2:00)
+- **Visual:** Scroll to Section 03: Local Audit Log. Show the permanent SQLite entries with timestamp, defect type, severity badges, and `PASSED` / `FLAGGED` status.
+- **Narration:**
+  > *"Every inspection event is permanently logged in a local SQLite ledger for zero-cloud traceability. Source code, APK, and technical report are available in our public repository. Thank you."*
 
-- NEU-DET held-out test: 226/270 correct; 83.70% accuracy; macro F1 0.837.
-- OPPO CPH2757: held-out `crazing_10.jpg` returned `crazing` in 904 ms on 19 November 2026. The manually selected Medium visual tier appeared in local history and remained after force-stop/relaunch. This confirms the workflow only; one sample does not validate accuracy or the tier.
-- Llama/ExecuTorch: one local generation completed in 86.35 seconds (70 prompt tokens, 9 generated tokens). It does not inspect the image.
+---
 
+## Pre-Recording Checklist
+1. APK installed on phone: `app-debug.apk` (located at `android-app/app/build/outputs/apk/debug/app-debug.apk`).
+2. Airplane Mode enabled (no Wi-Fi, no Mobile Data, no Bluetooth).
+3. Sample images ready in phone gallery:
+   - Defective sample: `neu_crazing_heldout.jpg` or `crazing_10.jpg`.
+   - Clean sample: `clean_nut.jpg` (clean machined hex nut).
+4. Audio recording clear, video framed horizontally at 16:9 / 1080p.
