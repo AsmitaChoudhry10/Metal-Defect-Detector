@@ -504,9 +504,10 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                     }
                 }
 
-                val isManualPass = operatorSeverity?.equals("Pass", ignoreCase = true) == true
+                val isAutoPass = result.lowercase().contains("clean") || result.lowercase().contains("pass") || analysisResult?.morphology?.calculatedSeverity?.contains("Pass", ignoreCase = true) == true
+                val isManualPass = operatorSeverity?.equals("Pass", ignoreCase = true) == true || (operatorSeverity == null && isAutoPass)
                 val activeSevTier = if (isManualPass) "PASS" else (operatorSeverity ?: analysisResult?.morphology?.calculatedSeverity ?: "MEDIUM").uppercase()
-                val effectiveGuidanceLabel = if (isManualPass) "no_defect" else result
+                val effectiveGuidanceLabel = if (isManualPass) "clean" else result
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -518,6 +519,43 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                     Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                         SectionHeading(title = "Inspection Finding", eyebrow = "02  ·  CLASSIFICATION & METROLOGY")
 
+                        // Immediate Quality Disposition Action Bar (Defect vs Pass/No Defect)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            FilledTonalButton(
+                                onClick = { saveOperatorSeverity(analysisResult?.morphology?.calculatedSeverity?.takeUnless { it.contains("Pass", ignoreCase = true) } ?: "High") },
+                                modifier = Modifier.weight(1f).height(42.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = if (!isManualPass) LaserCrimson.copy(alpha = 0.22f) else SlateSurfaceVariant,
+                                    contentColor = if (!isManualPass) LaserCrimson else MaterialTheme.colorScheme.onSurfaceVariant,
+                                ),
+                                border = BorderStroke(1.dp, if (!isManualPass) LaserCrimson else PrecisionBorder),
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Surface(modifier = Modifier.size(7.dp), shape = CircleShape, color = if (!isManualPass) LaserCrimson else Color.Gray) {}
+                                    Text("DEFECT DETECTED", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                                }
+                            }
+                            FilledTonalButton(
+                                onClick = { saveOperatorSeverity("Pass") },
+                                modifier = Modifier.weight(1f).height(42.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = if (isManualPass) NeonEmerald.copy(alpha = 0.22f) else SlateSurfaceVariant,
+                                    contentColor = if (isManualPass) NeonEmerald else MaterialTheme.colorScheme.onSurfaceVariant,
+                                ),
+                                border = BorderStroke(1.dp, if (isManualPass) NeonEmerald else PrecisionBorder),
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Surface(modifier = Modifier.size(7.dp), shape = CircleShape, color = if (isManualPass) NeonEmerald else Color.Gray) {}
+                                    Text("PASS / NO DEFECT", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                                }
+                            }
+                        }
+
                         // Primary Defect Classification & Prominent Severity Banner
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -526,16 +564,20 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                         ) {
                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(
-                                    result.replaceFirstChar { it.uppercase() },
+                                    if (isManualPass) "Clean Specimen (Pass)" else result.replaceFirstChar { it.uppercase() },
                                     style = MaterialTheme.typography.headlineLarge,
-                                    color = when (result.lowercase()) {
+                                    color = if (isManualPass) NeonEmerald else when (result.lowercase()) {
                                         "crazing" -> LaserCrimson
                                         "scratches" -> ElectricCyan
                                         "pitted_surface", "pitted surface" -> HazardAmber
                                         else -> CyberTeal
                                     },
                                 )
-                                Text("AUTOMATIC EDGE CV DETECTION · NO TRIAGE REQUIRED", style = MaterialTheme.typography.labelSmall, color = ElectricCyan)
+                                Text(
+                                    if (isManualPass) "SURFACE QUALITY: PASS · CLEAR FOR PRODUCTION" else "AUTOMATIC EDGE CV DETECTION · METROLOGY ACTIVE",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isManualPass) NeonEmerald else ElectricCyan,
+                                )
                             }
 
                             // High-Impact Severity Badge at top of finding card
@@ -753,21 +795,23 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
 
                         HorizontalDivider(color = PrecisionBorder)
 
-                        // Inspector Visual Override (Optional Audit Note)
-                        Text("Inspector Visual Override (Optional)", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                        // Inspector Quality Override (Optional Audit Note)
+                        Text("Inspector Quality Override (Optional)", style = MaterialTheme.typography.titleMedium, color = Color.White)
                         Text(
-                            "Automated Edge Metrology has already determined severity above. Use the options below only if a human inspector wants to record a manual override in the audit ledger.",
+                            "Record human inspector verification. Use 'Pass / No Defect' if part meets visual acceptance, or grade defect severity.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         val rubric = severityRubricFor(result)
-                        SeverityChoice("Low Severity", rubric.low, operatorSeverity == "Low", LowSeverity) { saveOperatorSeverity("Low") }
-                        SeverityChoice("Medium Severity", rubric.medium, operatorSeverity == "Medium", MediumSeverity) { saveOperatorSeverity("Medium") }
-                        SeverityChoice("High Severity", rubric.high, operatorSeverity == "High", HighSeverity) { saveOperatorSeverity("High") }
+                        SeverityChoice("Pass / No Defect", "Specimen is clear of surface flaws; meets tolerance for release to production (Green Tag).", isManualPass, NeonEmerald) { saveOperatorSeverity("Pass") }
+                        SeverityChoice("Low Severity", rubric.low, !isManualPass && operatorSeverity == "Low", LowSeverity) { saveOperatorSeverity("Low") }
+                        SeverityChoice("Medium Severity", rubric.medium, !isManualPass && operatorSeverity == "Medium", MediumSeverity) { saveOperatorSeverity("Medium") }
+                        SeverityChoice("High Severity", rubric.high, !isManualPass && operatorSeverity == "High", HighSeverity) { saveOperatorSeverity("High") }
                         Text(
-                            operatorSeverity?.let { "Recorded Override: $it" } ?: "Active Status: Using Automated Severity (${analysisResult?.morphology?.calculatedSeverity ?: "CALCULATING"})",
+                            if (isManualPass) "Active Status: RELEASE TO PRODUCTION (Green Tag Clearance)"
+                            else operatorSeverity?.let { "Recorded Override: $it" } ?: "Active Status: Using Automated Severity (${analysisResult?.morphology?.calculatedSeverity ?: "CALCULATING"})",
                             style = MaterialTheme.typography.labelMedium,
-                            color = if (operatorSeverity != null) ElectricCyan else NeonEmerald,
+                            color = if (isManualPass) NeonEmerald else if (operatorSeverity != null) ElectricCyan else NeonEmerald,
                         )
                     }
                 }
@@ -1268,7 +1312,7 @@ private fun checklistFor(label: String): List<String> = when (label.lowercase().
         "CORRECTIVE ACTION: Inspect roughing mill work-roll surface for spalling, roll fatigue, or mechanical roll banding.",
         "QUALITY CHECK: Use ultrasonic thickness gauge to confirm remaining wall thickness after surface blending satisfies minimum gauge."
     )
-    "clean", "normal", "no_defect", "passed", "pass" -> listOf(
+    "clean", "normal", "no_defect", "passed", "pass", "clean_surface" -> listOf(
         "IMMEDIATE DISPOSITION: RELEASE TO PRODUCTION (GREEN TAG). Specimen surface meets visual acceptance criteria.",
         "CORRECTIVE ACTION: No machine adjustment required. Log batch clearance in production QA lot register and maintain line speed.",
         "QUALITY CHECK: Continue scheduled 30-minute interval visual audit on subsequent production coils."
@@ -1280,15 +1324,31 @@ private fun checklistFor(label: String): List<String> = when (label.lowercase().
     )
 }
 
+internal fun sopActionSummaryFor(label: String): String = when (label.lowercase().replace(' ', '_').replace('-', '_')) {
+    "crazing", "crack", "cracks" -> "Quarantine coil with Red Tag immediately and inspect mill roll cooling sprays for thermal shock."
+    "scratches", "scratch" -> "Hold part for surface dressing polish (max 0.05mm) and clean guide rollers to remove metal grit."
+    "pitted_surface", "corrosion", "corroded", "pitted" -> "Isolate batch for orbital buffing rework (<0.10mm) and check acid pickling bath concentration."
+    "inclusion" -> "Segregate part to prevent forming fractures and verify melt furnace argon shielding logs."
+    "rolled_in_scale", "rolled-in_scale", "scale" -> "Crop defective linear strip footage and unclog 150-bar descaling nozzles."
+    "patches" -> "Flag sheet for shear cropping/grinding and inspect roughing rolls for fatigue spalling."
+    "clean", "normal", "no_defect", "passed", "pass", "clean_surface" -> "Affix Green Tag, release component to production assembly, and log batch clearance."
+    else -> "Hold specimen for QA verification and check tooling calibration."
+}
+
 internal fun buildLlamaPrompt(label: String, approvedChecklist: String, severity: String = "HIGH"): String {
     val cleanLabel = label.replace('_', ' ').replace('-', ' ').trim()
     val cleanSeverity = severity.replace(Regex("\\([^)]*\\)"), "").trim().ifBlank { "High" }
     val isNormal = cleanLabel.lowercase().contains("clean") || cleanLabel.lowercase().contains("normal") || cleanLabel.lowercase().contains("pass")
-    val instruction = if (isNormal) "State lot clearance and production release." else "State part quarantine/rework and tooling check."
+    val roleDirective = if (isNormal) "Instruct the operator to release the part to production." else "Instruct the operator on part quarantine/rework and machine tooling fix."
+    val standardSop = sopActionSummaryFor(cleanLabel)
+    val findingTitle = if (isNormal) "Clean / No Defect" else cleanLabel
+    val sevTitle = if (isNormal) "PASS" else cleanSeverity
     return """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-Industrial QC Copilot. 1 concise direct sentence: $instruction No intro.
+Industrial QC Copilot. $roleDirective
 <|eot_id|><|start_header_id|>user<|end_header_id|>
-Defect: $cleanLabel. Severity: $cleanSeverity. Action?
+Finding: $findingTitle (Severity: $sevTitle).
+Standard Action: $standardSop
+What should the operator do?
 <|eot_id|><|start_header_id|>assistant<|end_header_id|>""".trimIndent()
 }
 
