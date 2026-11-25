@@ -14,18 +14,19 @@
 /reports/picker-*.png
 
 # Android build output and machine-specific configuration
-/android-app/.gradle/
-/android-app/.idea/
-/android-app/**/build/
-/android-app/local.properties
-/android-app/app/src/main/assets/kolektor_normal_defect_svm.xml
-/android-app/app/src/main/assets/synthetic_fitting_mobilenet.onnx
+/android-app/
+/source-code/.gradle/
+/source-code/.idea/
+/source-code/**/build/
+/source-code/local.properties
+/source-code/app/src/main/assets/kolektor_normal_defect_svm.xml
+/source-code/app/src/main/assets/synthetic_fitting_mobilenet.onnx
 
 # Dataset samples used only for local Android instrumentation
-/android-app/app/src/androidTest/assets/neu_test/
-/android-app/app/src/androidTest/assets/neu_test_manifest.csv
-/android-app/app/src/androidTest/assets/ksdd_normal.png
-/android-app/app/src/androidTest/assets/ksdd_defect.png
+/source-code/app/src/androidTest/assets/neu_test/
+/source-code/app/src/androidTest/assets/neu_test_manifest.csv
+/source-code/app/src/androidTest/assets/ksdd_normal.png
+/source-code/app/src/androidTest/assets/ksdd_defect.png
 
 # Generated Python/runtime files
 **/__pycache__/
