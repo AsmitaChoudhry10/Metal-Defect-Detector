@@ -17,7 +17,6 @@ Open any key file directly without clicking through nested folders:
 - **Visual Triage & Severity Rubric:** [SeverityRubric.kt](source-code/app/src/main/java/org/bharatai/ps5/metalinspection/SeverityRubric.kt)
 - **SVM Training Script:** [tune_neu_opencv_svm.py](scripts/tune_neu_opencv_svm.py)
 - **Technical Report (PDF):** [Final_Technical_Report.pdf](reports/Final_Technical_Report.pdf)
-- **Technical Report (Word):** [Final_Technical_Report.docx](reports/Final_Technical_Report.docx)
 
 ---
 
