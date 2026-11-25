@@ -10,6 +10,7 @@ Built for the **Bharat AI-SoC Challenge (PS5: Real-Time Industrial Defect Detect
 
 Open any key file directly without clicking through nested folders:
 
+- **Download Android App (APK):** [Metal-Inspection-Assistant.apk (v1.0)](https://github.com/AsmitaChoudhry10/Metal-Defect-Detector/releases/download/v1.0/Metal-Inspection-Assistant.apk)
 - **Main App & ExecuTorch Llama Integration:** [MainActivity.kt](source-code/app/src/main/java/org/bharatai/ps5/metalinspection/MainActivity.kt)
 - **Welcome, Tutorial, About & History UI:** [AppScreens.kt](source-code/app/src/main/java/org/bharatai/ps5/metalinspection/AppScreens.kt)
 - **OpenCV Defect Classifier & Clean-Part Metrology:** [OpenCvDefectClassifier.kt](source-code/app/src/main/java/org/bharatai/ps5/metalinspection/OpenCvDefectClassifier.kt)
