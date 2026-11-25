@@ -97,6 +97,11 @@ import org.pytorch.executorch.extension.llm.LlmModuleConfig
 import java.io.File
 import java.text.DateFormat
 import java.util.Date
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.saveable.rememberSaveable
+import org.bharatai.ps5.metalinspection.ui.theme.CoolBlue
+import org.bharatai.ps5.metalinspection.ui.theme.GraphiteSlate
+import org.bharatai.ps5.metalinspection.ui.theme.SteelRecessed
 import java.util.Locale
 
 // Synthetic imagery is not permitted for the competition demo. Keep its research
@@ -111,14 +116,79 @@ class MainActivity : ComponentActivity() {
         val initialUri: Uri? = intent?.data ?: intent?.getParcelableExtra(android.content.Intent.EXTRA_STREAM)
         setContent {
             MetalInspectionAssistantTheme(darkTheme = true) {
-                InspectionHomeScreen(initialUri = initialUri)
+                InspectionApp(initialUri = initialUri)
             }
         }
     }
 }
 
 @Composable
-private fun InspectionHomeScreen(initialUri: Uri? = null) {
+private fun InspectionApp(initialUri: Uri? = null) {
+    val context = LocalContext.current
+    var currentScreen by rememberSaveable {
+        mutableStateOf(if (initialUri != null) AppScreen.Inspect else AppScreen.Welcome)
+    }
+    var history by remember { mutableStateOf<List<InspectionRecord>>(emptyList()) }
+    val competitionHistory = history.filterNot { it.label.startsWith("Synthetic fitting:", ignoreCase = true) }
+
+    LaunchedEffect(context, currentScreen) {
+        history = withContext(Dispatchers.IO) {
+            InspectionHistoryStore(context).use { store -> store.recent() }
+        }
+    }
+
+    when (currentScreen) {
+        AppScreen.Welcome -> {
+            WelcomeScreen(
+                onStartInspection = { currentScreen = AppScreen.Inspect },
+                onViewTutorial = { currentScreen = AppScreen.Tutorial },
+                onOpenHistory = { currentScreen = AppScreen.History },
+                onOpenAbout = { currentScreen = AppScreen.About },
+            )
+        }
+        AppScreen.Tutorial -> {
+            TutorialScreen(
+                onDone = { currentScreen = AppScreen.Welcome },
+                onStartInspection = { currentScreen = AppScreen.Inspect },
+            )
+        }
+        AppScreen.About -> {
+            AboutScreen(
+                onBack = { currentScreen = AppScreen.Welcome },
+            )
+        }
+        AppScreen.History -> {
+            HistoryScreen(
+                records = competitionHistory,
+                onBack = { currentScreen = AppScreen.Welcome },
+                onStartNewInspection = { currentScreen = AppScreen.Inspect },
+            )
+        }
+        AppScreen.Inspect -> {
+            InspectionHomeScreen(
+                initialUri = initialUri,
+                competitionHistory = competitionHistory,
+                onBack = { currentScreen = AppScreen.Welcome },
+                onViewTutorial = { currentScreen = AppScreen.Tutorial },
+                onOpenHistory = { currentScreen = AppScreen.History },
+                onOpenAbout = { currentScreen = AppScreen.About },
+                onHistoryChanged = { updated -> history = updated },
+            )
+        }
+    }
+}
+
+@Composable
+private fun InspectionHomeScreen(
+    initialUri: Uri? = null,
+    competitionHistory: List<InspectionRecord> = emptyList(),
+    onBack: () -> Unit = {},
+    onViewTutorial: () -> Unit = {},
+    onOpenHistory: () -> Unit = {},
+    onOpenAbout: () -> Unit = {},
+    onHistoryChanged: (List<InspectionRecord>) -> Unit = {},
+) {
+    BackHandler { onBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var selectedUri by remember { mutableStateOf<Uri?>(initialUri) }
@@ -135,14 +205,6 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
     var syntheticResult by remember { mutableStateOf<SyntheticFittingPrediction?>(null) }
     var checkingSynthetic by remember { mutableStateOf(false) }
     var syntheticStatus by remember { mutableStateOf("") }
-    var history by remember { mutableStateOf<List<InspectionRecord>>(emptyList()) }
-    val competitionHistory = history.filterNot { it.label.startsWith("Synthetic fitting:", ignoreCase = true) }
-
-    LaunchedEffect(context) {
-        history = withContext(Dispatchers.IO) {
-            InspectionHistoryStore(context).use { store -> store.recent() }
-        }
-    }
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
@@ -241,9 +303,10 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                 currentInspectionId = withContext(Dispatchers.IO) {
                     InspectionHistoryStore(context).use { store -> store.add(record) }
                 }
-                history = withContext(Dispatchers.IO) {
+                val recent = withContext(Dispatchers.IO) {
                     InspectionHistoryStore(context).use { store -> store.recent() }
                 }
+                onHistoryChanged(recent)
             }.onFailure {
                 status = "Inspection failed: ${it.message ?: "OpenCV processing error"}"
             }
@@ -256,90 +319,82 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 18.dp, vertical = 14.dp),
+                .padding(horizontal = 18.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            // Live Hardware & Edge Telemetry Bar
+            // Modern Brushed-Metal Top Bar (No unverified claims)
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 2.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Box(modifier = Modifier.size(7.dp).background(NeonEmerald, CircleShape))
-                    Text("SYSTEM OPERATIONAL · AIR-GAPPED", style = MaterialTheme.typography.labelSmall, color = NeonEmerald)
-                }
-                Text("ARM CORTEX-A · NPU ACCELERATED", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-
-            // Hero Header Card: Industrial QC Assistant
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = SlateSurface),
-                border = BorderStroke(1.dp, PrecisionBorder),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(Color(0xFF162338), Color(0xFF0C1421))
-                            )
-                        )
-                        .padding(18.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        ) {
-                            Surface(
-                                modifier = Modifier.size(48.dp),
-                                shape = RoundedCornerShape(14.dp),
-                                color = ElectricCyan.copy(alpha = 0.12f),
-                                border = BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.35f)),
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    InspectionGlyph(InspectionGlyphKind.Scan, Modifier.size(24.dp), ElectricCyan)
-                                }
-                            }
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text("BHARAT AI-SOC CHALLENGE · PS5", style = MaterialTheme.typography.labelSmall, color = ElectricCyan)
-                                Text("Metal Defect Assistant", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = Color.White)
-                                Text("Real-Time Defect Detection & Surface Metrology", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = SlateSurfaceVariant,
+                        border = BorderStroke(1.dp, PrecisionBorder),
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clickable { onBack() },
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            AppGlyph(AppGlyphKind.Back, Modifier.size(16.dp), Color.White)
                         }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = ElectricCyan.copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.35f)),
-                            ) {
-                                Text(
-                                    "EXECUTORCH + LLAMA 3.2",
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = ElectricCyan,
-                                )
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = SlateSurfaceVariant,
-                                border = BorderStroke(1.dp, PrecisionBorder),
-                            ) {
-                                Text(
-                                    "2ms INFERENCE · ZERO CLOUD",
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
+                    }
+                    Column {
+                        Text(
+                            "Surface Inspection",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                        )
+                        Text(
+                            "On-Device Defect Metrology",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = SlateSurfaceVariant,
+                        border = BorderStroke(1.dp, PrecisionBorder),
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clickable { onViewTutorial() },
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            AppGlyph(AppGlyphKind.Book, Modifier.size(17.dp), ElectricCyan)
+                        }
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = SlateSurfaceVariant,
+                        border = BorderStroke(1.dp, PrecisionBorder),
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clickable { onOpenHistory() },
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            AppGlyph(AppGlyphKind.History, Modifier.size(17.dp), MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = SlateSurfaceVariant,
+                        border = BorderStroke(1.dp, PrecisionBorder),
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clickable { onOpenAbout() },
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            AppGlyph(AppGlyphKind.Info, Modifier.size(17.dp), MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -351,16 +406,17 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = SlateSurface),
-                border = BorderStroke(1.dp, PrecisionBorder),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                border = metallicBorderStroke(bright = true),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {
                 val bitmap = previewBitmap
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .brushedMetalFinish(elevated = false)
                         .padding(10.dp)
-                        .background(ObsidianCanvas, RoundedCornerShape(16.dp))
+                        .background(SteelRecessed, RoundedCornerShape(16.dp))
                         .border(1.dp, PrecisionBorder, RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -374,18 +430,18 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                             verticalArrangement = Arrangement.Center,
                         ) {
                             Surface(
-                                shape = RoundedCornerShape(18.dp),
-                                color = ElectricCyan.copy(alpha = 0.10f),
-                                border = BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.3f)),
+                                shape = RoundedCornerShape(16.dp),
+                                color = SlateSurfaceVariant,
+                                border = BorderStroke(1.dp, CoolBlue.copy(alpha = 0.35f)),
                             ) {
-                                Box(modifier = Modifier.size(52.dp), contentAlignment = Alignment.Center) {
-                                    InspectionGlyph(InspectionGlyphKind.Camera, Modifier.size(26.dp), ElectricCyan)
+                                Box(modifier = Modifier.size(54.dp), contentAlignment = Alignment.Center) {
+                                    AppGlyph(AppGlyphKind.Scan, Modifier.size(26.dp), CoolBlue)
                                 }
                             }
-                            Spacer(Modifier.height(10.dp))
-                            Text("Awaiting Specimen", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                            Spacer(Modifier.height(12.dp))
+                            Text("No Specimen Loaded", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), color = Color.White)
                             Text(
-                                "Capture flat steel surface or import photo",
+                                "Capture or import a metal surface photo to begin",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -403,14 +459,14 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                             Surface(
                                 modifier = Modifier.padding(10.dp),
                                 shape = RoundedCornerShape(6.dp),
-                                color = ObsidianCanvas.copy(alpha = 0.82f),
+                                color = GraphiteSlate.copy(alpha = 0.88f),
                                 border = BorderStroke(1.dp, PrecisionBorder),
                             ) {
                                 Text(
                                     "SPECIMEN LOADED · 200x200 ROI",
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = ElectricCyan,
+                                    color = CoolBlue,
                                 )
                             }
                         }
@@ -430,10 +486,10 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                     horizontalArrangement = Arrangement.spacedBy(9.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    InspectionGlyph(
-                        if (status.startsWith("Inspection complete")) InspectionGlyphKind.Check else InspectionGlyphKind.Scan,
+                    AppGlyph(
+                        if (status.startsWith("Inspection complete")) AppGlyphKind.Check else AppGlyphKind.Scan,
                         Modifier.size(18.dp),
-                        if (status.startsWith("Inspection complete")) NeonEmerald else ElectricCyan,
+                        if (status.startsWith("Inspection complete")) NeonEmerald else CoolBlue,
                     )
                     Text(
                         text = status,
@@ -450,14 +506,14 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = ElectricCyan,
-                    contentColor = Color(0xFF00222A),
+                    containerColor = CoolBlue,
+                    contentColor = Color(0xFF0B1320),
                     disabledContainerColor = SlateSurfaceVariant,
                     disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 ),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp),
             ) {
-                InspectionGlyph(InspectionGlyphKind.Scan, Modifier.size(19.dp), if (previewBitmap != null) Color(0xFF00222A) else MaterialTheme.colorScheme.onSurfaceVariant)
+                AppGlyph(AppGlyphKind.Scan, Modifier.size(19.dp), if (previewBitmap != null) Color(0xFF0B1320) else MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(9.dp))
                 Text(
                     if (analyzing) "ANALYZING ON-DEVICE…" else "ANALYZE SPECIMEN",
@@ -473,7 +529,7 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                     border = BorderStroke(1.dp, PrecisionBorder),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
                 ) {
-                    InspectionGlyph(InspectionGlyphKind.Camera, Modifier.size(18.dp), ElectricCyan)
+                    AppGlyph(AppGlyphKind.Camera, Modifier.size(18.dp), CoolBlue)
                     Spacer(Modifier.width(7.dp))
                     Text("Capture", style = MaterialTheme.typography.labelLarge)
                 }
@@ -484,7 +540,7 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                     border = BorderStroke(1.dp, PrecisionBorder),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
                 ) {
-                    InspectionGlyph(InspectionGlyphKind.Gallery, Modifier.size(18.dp), ElectricCyan)
+                    AppGlyph(AppGlyphKind.Gallery, Modifier.size(18.dp), CoolBlue)
                     Spacer(Modifier.width(7.dp))
                     Text("Import", style = MaterialTheme.typography.labelLarge)
                 }
@@ -502,7 +558,7 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                                 store.recent()
                             }
                         }
-                        history = updatedHistory
+                        onHistoryChanged(updatedHistory)
                     }
                 }
 
@@ -516,11 +572,17 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(22.dp),
-                    colors = CardDefaults.cardColors(containerColor = SlateSurface),
-                    border = BorderStroke(1.dp, PrecisionBorderBright),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    border = metallicBorderStroke(bright = true),
                     elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
                 ) {
-                    Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .brushedMetalFinish(elevated = true)
+                            .padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(13.dp),
+                    ) {
                         SectionHeading(title = "Inspection Finding", eyebrow = "02  ·  CLASSIFICATION & METROLOGY")
 
                         // Immediate Quality Disposition Action Bar (Operator Decision)
@@ -568,19 +630,19 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                         ) {
                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(
-                                    if (isAiClean) "Clean Surface" else "${result.replaceFirstChar { it.uppercase() }} Defect",
+                                    if (isAiClean) "Nominal Surface (No Flaws Detected)" else "${result.replaceFirstChar { it.uppercase() }} Defect",
                                     style = MaterialTheme.typography.headlineLarge,
                                     color = if (isAiClean) NeonEmerald else when (result.lowercase()) {
                                         "crazing" -> LaserCrimson
-                                        "scratches" -> ElectricCyan
+                                        "scratches" -> CoolBlue
                                         "pitted_surface", "pitted surface" -> HazardAmber
                                         else -> CyberTeal
                                     },
                                 )
                                 Text(
-                                    if (isAiClean) "SURFACE QUALITY: PASS · MEETS PRODUCTION TOLERANCE" else "AUTOMATED SURFACE DEFECT DETECTED · METROLOGY ACTIVE",
+                                    if (isAiClean) "VISUAL BASELINE: NOMINAL · WITHIN SURFACE TOLERANCE" else "AUTOMATED SURFACE DEFECT DETECTED · METROLOGY ACTIVE",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (isAiClean) NeonEmerald else ElectricCyan,
+                                    color = if (isAiClean) NeonEmerald else CoolBlue,
                                 )
                             }
 
@@ -588,7 +650,7 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                             val isHigh = morph?.calculatedSeverity?.contains("High", ignoreCase = true) == true
                             val isMed = morph?.calculatedSeverity?.contains("Medium", ignoreCase = true) == true
                             val sevColor = if (isAiClean) NeonEmerald else if (isHigh) LaserCrimson else if (isMed) HazardAmber else LowSeverity
-                            val sevLabel = if (isAiClean) "PASS" else if (isHigh) "HIGH" else if (isMed) "MEDIUM" else "LOW"
+                            val sevLabel = if (isAiClean) "NOMINAL" else if (isHigh) "HIGH" else if (isMed) "MEDIUM" else "LOW"
 
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
@@ -609,14 +671,14 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                                             color = sevColor,
                                         ) {}
                                         Text(
-                                            if (isAiClean) "STATUS: PASS" else "● FLAGGED: $sevLabel",
+                                            if (isAiClean) "STATUS: NOMINAL" else "● FLAGGED: $sevLabel",
                                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                             color = sevColor,
                                         )
                                     }
                                     if (isAiClean) {
                                         Text(
-                                            "Clear for Production",
+                                            "Within visual baseline",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = sevColor.copy(alpha = 0.85f),
                                         )
@@ -659,7 +721,7 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                             border = BorderStroke(1.dp, PrecisionBorder),
                         ) {
                             Text(
-                                "NEU-DET Benchmark · 83.70% accuracy / 0.837 macro F1 on 270 held-out images. Evaluated offline on Arm Cortex-A (2ms median predict).",
+                                "NEU-DET Benchmark · 83.70% test accuracy / 0.837 macro F1 on 270 held-out images. Real-time edge inference on Arm Cortex-A.",
                                 modifier = Modifier.padding(10.dp),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -771,7 +833,7 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                                     }
 
                                     Text(
-                                        "Automated surface severity computed deterministically from pixel gradient and defect contour density on-device via OpenCV.",
+                                        "Automated surface severity computed deterministically from pixel gradient and defect contour density on-device via OpenCV. Optical decision support only; verify critical tolerances with calibrated physical instruments.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -821,18 +883,18 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                         // Inspector Quality Override (Optional Audit Note)
                         Text("Inspector Quality Override (Optional)", style = MaterialTheme.typography.titleMedium, color = Color.White)
                         Text(
-                            "Record human inspector verification. Use 'Pass / No Defect' if part meets visual acceptance, or grade defect severity.",
+                            "Record human inspector verification. Use 'Pass / Visual Acceptance' if part meets visual acceptance, or grade defect severity.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         val rubric = severityRubricFor(result)
                         val isPassSelected = operatorIsPass || (operatorSeverity == null && isAiClean)
-                        SeverityChoice("Pass / No Defect", "Specimen is clear of surface flaws; meets tolerance for release to production (Green Tag).", isPassSelected, NeonEmerald) { saveOperatorSeverity("Pass") }
+                        SeverityChoice("Pass / Visual Acceptance", "Specimen is clear of surface flaws; satisfies visual baseline criteria for release.", isPassSelected, NeonEmerald) { saveOperatorSeverity("Pass") }
                         SeverityChoice("Low Severity", rubric.low, !isPassSelected && (operatorSeverity == "Low" || (operatorSeverity == null && morph?.calculatedSeverity?.contains("Low", ignoreCase = true) == true)), LowSeverity) { saveOperatorSeverity("Low") }
                         SeverityChoice("Medium Severity", rubric.medium, !isPassSelected && (operatorSeverity == "Medium" || (operatorSeverity == null && morph?.calculatedSeverity?.contains("Medium", ignoreCase = true) == true)), MediumSeverity) { saveOperatorSeverity("Medium") }
                         SeverityChoice("High Severity", rubric.high, !isPassSelected && (operatorSeverity == "High" || (operatorSeverity == null && morph?.calculatedSeverity?.contains("High", ignoreCase = true) == true)), HighSeverity) { saveOperatorSeverity("High") }
                         Text(
-                            if (isPassSelected) "Active Status: RELEASE TO PRODUCTION (Green Tag Clearance)"
+                            if (isPassSelected) "Active Status: VISUAL ACCEPTANCE RECORDED"
                             else operatorSeverity?.let { "Recorded Override: $it" } ?: "Active Status: FLAGGED · Using Automated Severity (${morph?.calculatedSeverity ?: "CALCULATING"})",
                             style = MaterialTheme.typography.labelMedium,
                             color = if (isPassSelected) NeonEmerald else if (operatorSeverity != null) ElectricCyan else LaserCrimson,
@@ -874,7 +936,8 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                                             ),
                                         )
                                     }
-                                    InspectionHistoryStore(context).use { store -> history = store.recent() }
+                                    val updated = InspectionHistoryStore(context).use { store -> store.recent() }
+                                    onHistoryChanged(updated)
                                 }
                                 status = "Experimental binary check complete (on-device)."
                             }.onFailure {
@@ -911,90 +974,42 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                 }
             }
 
-            // Section 3: Recent Inspection Ledger (Audit Log)
+            // Quick Ledger Link
             if (competitionHistory.isNotEmpty()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp),
-                    colors = CardDefaults.cardColors(containerColor = SlateSurface),
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenHistory() },
+                    shape = RoundedCornerShape(14.dp),
+                    color = SlateSurface,
                     border = BorderStroke(1.dp, PrecisionBorder),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 ) {
-                    Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SectionHeading("Inspection Ledger", "03  ·  LOCAL AUDIT LOG")
-                        competitionHistory.forEach { record ->
-                            val time = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
-                                .format(Date(record.inspectedAt))
-                            val tier = severityTierOf(record.severity)
-                            val badgeColor = when (tier) {
-                                "HIGH" -> LaserCrimson
-                                "MEDIUM" -> HazardAmber
-                                "LOW" -> NeonEmerald
-                                else -> SlateSurfaceVariant
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = SlateSurfaceVariant,
-                                border = BorderStroke(1.dp, PrecisionBorder),
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        ) {
-                                            Text(record.label.uppercase(), style = MaterialTheme.typography.labelLarge, color = Color.White)
-                                            if (tier != "UNREVIEWED") {
-                                                Surface(
-                                                    shape = RoundedCornerShape(6.dp),
-                                                    color = badgeColor.copy(alpha = 0.18f),
-                                                    border = BorderStroke(1.dp, badgeColor),
-                                                ) {
-                                                    Text(
-                                                        tier,
-                                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
-                                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                                        color = badgeColor,
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        Text("$time · ${record.durationMs} ms", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                    if (tier != "UNREVIEWED") {
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = ObsidianCanvas,
-                                            border = BorderStroke(1.dp, PrecisionBorder),
-                                        ) {
-                                            Text(
-                                                if (tier == "HIGH") "FLAGGED" else if (tier == "MEDIUM") "REVIEW" else "PASSED",
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                                color = badgeColor,
-                                            )
-                                        }
-                                    }
-                                }
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            AppGlyph(AppGlyphKind.History, Modifier.size(18.dp), CoolBlue)
+                            Column {
+                                Text("Inspection Ledger", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                                Text("${competitionHistory.size} records preserved locally in SQLite", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
+                        Text("View all →", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = CoolBlue)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            // Trust & Decision Support Footer Card
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                color = SlateSurfaceVariant,
+                shape = RoundedCornerShape(12.dp),
+                color = SteelRecessed,
                 border = BorderStroke(1.dp, PrecisionBorder),
             ) {
                 Text(
-                    text = "Research prototype. The primary classifier is closed-set and always selects one of 6 NEU-DET defects. Recommendations and severity tiers are prompts, not certified standards; a qualified inspector must make any physical part disposition.",
+                    text = "Visual decision support only. Model predictions and morphological severity indices assist human inspectors and do not replace certified metallurgical or structural acceptance standards.",
                     modifier = Modifier.padding(12.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1161,11 +1176,17 @@ private fun LlamaAssistantPanel(context: Context, defectLabel: String?, severity
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = SlateSurface),
-        border = BorderStroke(1.dp, PrecisionBorder),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = metallicBorderStroke(bright = false),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
-        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .brushedMetalFinish(elevated = false)
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             SectionHeading("AI Advisory Copilot", "04  ·  EXECUTORCH + LLAMA 3.2")
             Text(
                 "On-device reasoning model generates structured operator advisory from predicted findings. Runs 100% offline via ExecuTorch.",
@@ -1337,9 +1358,9 @@ private fun checklistFor(label: String): List<String> = when (label.lowercase().
         "QUALITY CHECK: Use ultrasonic thickness gauge to confirm remaining wall thickness after surface blending satisfies minimum gauge."
     )
     "clean", "normal", "no_defect", "passed", "pass", "clean_surface" -> listOf(
-        "IMMEDIATE DISPOSITION: RELEASE TO PRODUCTION (GREEN TAG). Specimen surface meets visual acceptance criteria.",
-        "CORRECTIVE ACTION: No machine adjustment required. Log batch clearance in production QA lot register and maintain line speed.",
-        "QUALITY CHECK: Continue scheduled 30-minute interval visual audit on subsequent production coils."
+        "VISUAL DISPOSITION: NO ANOMALIES DETECTED. Specimen satisfies visual baseline criteria; proceed to standard QA signoff.",
+        "CORRECTIVE ACTION: No machine adjustment required. Log specimen evaluation in production QA lot register.",
+        "QUALITY CHECK: Continue scheduled interval visual audit on subsequent production components."
     )
     else -> listOf(
         "IMMEDIATE DISPOSITION: Hold specimen under inspection hold until qualified QA inspector completes visual evaluation.",
@@ -1355,7 +1376,7 @@ internal fun sopActionSummaryFor(label: String): String = when (label.lowercase(
     "inclusion" -> "Segregate part to prevent forming fractures and verify melt furnace argon shielding logs."
     "rolled_in_scale", "rolled-in_scale", "scale" -> "Crop defective linear strip footage and unclog 150-bar descaling nozzles."
     "patches" -> "Flag sheet for shear cropping/grinding and inspect roughing rolls for fatigue spalling."
-    "clean", "normal", "no_defect", "passed", "pass", "clean_surface" -> "Affix Green Tag, release component to production assembly, and log batch clearance."
+    "clean", "normal", "no_defect", "passed", "pass", "clean_surface" -> "No surface anomalies detected within visual baseline; proceed to standard QA signoff."
     else -> "Hold specimen for QA verification and check tooling calibration."
 }
 
