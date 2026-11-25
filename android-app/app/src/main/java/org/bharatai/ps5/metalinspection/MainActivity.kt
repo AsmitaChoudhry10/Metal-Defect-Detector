@@ -154,6 +154,7 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                 kolektorScore = null
                 syntheticResult = null
                 syntheticStatus = ""
+                operatorSeverity = null
                 selectedUri = uri
             }
         },
@@ -170,6 +171,7 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                 kolektorScore = null
                 syntheticResult = null
                 syntheticStatus = ""
+                operatorSeverity = null
                 status = "Specimen acquired. Tap Analyze to classify."
             } else {
                 status = "Camera capture cancelled. Try again."
@@ -491,8 +493,8 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
             // Section 2: Defect Classification & Metrology HUD
             prediction?.let { result ->
                 fun saveOperatorSeverity(level: String) {
-                    val recordId = currentInspectionId ?: return
                     operatorSeverity = level
+                    val recordId = currentInspectionId ?: return
                     scope.launch {
                         val updatedHistory = withContext(Dispatchers.IO) {
                             InspectionHistoryStore(context).use { store ->
@@ -504,10 +506,12 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                     }
                 }
 
-                val isAutoPass = result.lowercase().contains("clean") || result.lowercase().contains("pass") || analysisResult?.morphology?.calculatedSeverity?.contains("Pass", ignoreCase = true) == true
-                val isManualPass = operatorSeverity?.equals("Pass", ignoreCase = true) == true || (operatorSeverity == null && isAutoPass)
-                val activeSevTier = if (isManualPass) "PASS" else (operatorSeverity ?: analysisResult?.morphology?.calculatedSeverity ?: "MEDIUM").uppercase()
-                val effectiveGuidanceLabel = if (isManualPass) "clean" else result
+                val morph = analysisResult?.morphology
+                val areaPct = morph?.defectAreaPercent ?: 0f
+                val isAiClean = result.lowercase().contains("clean") || areaPct < 1.0f
+                val operatorIsPass = operatorSeverity?.equals("Pass", ignoreCase = true) == true
+                val activeSevTier = if (isAiClean || operatorIsPass) "PASS" else (operatorSeverity ?: morph?.calculatedSeverity ?: "MEDIUM").uppercase()
+                val effectiveGuidanceLabel = if (isAiClean || operatorIsPass) "clean" else result
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -519,24 +523,24 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                     Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                         SectionHeading(title = "Inspection Finding", eyebrow = "02  ·  CLASSIFICATION & METROLOGY")
 
-                        // Immediate Quality Disposition Action Bar (Defect vs Pass/No Defect)
+                        // Immediate Quality Disposition Action Bar (Operator Decision)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             FilledTonalButton(
-                                onClick = { saveOperatorSeverity(analysisResult?.morphology?.calculatedSeverity?.takeUnless { it.contains("Pass", ignoreCase = true) } ?: "High") },
+                                onClick = { saveOperatorSeverity(morph?.calculatedSeverity?.takeUnless { it.contains("Pass", ignoreCase = true) } ?: "High") },
                                 modifier = Modifier.weight(1f).height(42.dp),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = if (!isManualPass) LaserCrimson.copy(alpha = 0.22f) else SlateSurfaceVariant,
-                                    contentColor = if (!isManualPass) LaserCrimson else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    containerColor = if (!isAiClean && !operatorIsPass) LaserCrimson.copy(alpha = 0.22f) else SlateSurfaceVariant,
+                                    contentColor = if (!isAiClean && !operatorIsPass) LaserCrimson else MaterialTheme.colorScheme.onSurfaceVariant,
                                 ),
-                                border = BorderStroke(1.dp, if (!isManualPass) LaserCrimson else PrecisionBorder),
+                                border = BorderStroke(1.dp, if (!isAiClean && !operatorIsPass) LaserCrimson else PrecisionBorder),
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Surface(modifier = Modifier.size(7.dp), shape = CircleShape, color = if (!isManualPass) LaserCrimson else Color.Gray) {}
-                                    Text("DEFECT DETECTED", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                                    Surface(modifier = Modifier.size(7.dp), shape = CircleShape, color = if (!isAiClean && !operatorIsPass) LaserCrimson else Color.Gray) {}
+                                    Text("DEFECT FLAGGED", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
                                 }
                             }
                             FilledTonalButton(
@@ -544,19 +548,19 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                                 modifier = Modifier.weight(1f).height(42.dp),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = if (isManualPass) NeonEmerald.copy(alpha = 0.22f) else SlateSurfaceVariant,
-                                    contentColor = if (isManualPass) NeonEmerald else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    containerColor = if (isAiClean || operatorIsPass) NeonEmerald.copy(alpha = 0.22f) else SlateSurfaceVariant,
+                                    contentColor = if (isAiClean || operatorIsPass) NeonEmerald else MaterialTheme.colorScheme.onSurfaceVariant,
                                 ),
-                                border = BorderStroke(1.dp, if (isManualPass) NeonEmerald else PrecisionBorder),
+                                border = BorderStroke(1.dp, if (isAiClean || operatorIsPass) NeonEmerald else PrecisionBorder),
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Surface(modifier = Modifier.size(7.dp), shape = CircleShape, color = if (isManualPass) NeonEmerald else Color.Gray) {}
+                                    Surface(modifier = Modifier.size(7.dp), shape = CircleShape, color = if (isAiClean || operatorIsPass) NeonEmerald else Color.Gray) {}
                                     Text("PASS / NO DEFECT", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
                                 }
                             }
                         }
 
-                        // Primary Defect Classification & Prominent Severity Banner
+                        // Primary Defect Classification & Prominent Severity Banner (ALWAYS OBJECTIVE)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -564,9 +568,9 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                         ) {
                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(
-                                    if (isManualPass) "Clean Specimen (Pass)" else result.replaceFirstChar { it.uppercase() },
+                                    if (isAiClean) "Clean Surface" else "${result.replaceFirstChar { it.uppercase() }} Defect",
                                     style = MaterialTheme.typography.headlineLarge,
-                                    color = if (isManualPass) NeonEmerald else when (result.lowercase()) {
+                                    color = if (isAiClean) NeonEmerald else when (result.lowercase()) {
                                         "crazing" -> LaserCrimson
                                         "scratches" -> ElectricCyan
                                         "pitted_surface", "pitted surface" -> HazardAmber
@@ -574,18 +578,17 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                                     },
                                 )
                                 Text(
-                                    if (isManualPass) "SURFACE QUALITY: PASS · CLEAR FOR PRODUCTION" else "AUTOMATIC EDGE CV DETECTION · METROLOGY ACTIVE",
+                                    if (isAiClean) "SURFACE QUALITY: PASS · MEETS PRODUCTION TOLERANCE" else "AUTOMATED SURFACE DEFECT DETECTED · METROLOGY ACTIVE",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (isManualPass) NeonEmerald else ElectricCyan,
+                                    color = if (isAiClean) NeonEmerald else ElectricCyan,
                                 )
                             }
 
-                            // High-Impact Severity Badge at top of finding card
-                            val isHigh = activeSevTier.contains("HIGH")
-                            val isMed = activeSevTier.contains("MED")
-                            val isPass = activeSevTier.contains("PASS") || activeSevTier.contains("CLEAN")
-                            val sevColor = if (isHigh) LaserCrimson else if (isMed) HazardAmber else NeonEmerald
-                            val sevLabel = if (isHigh) "HIGH" else if (isMed) "MEDIUM" else if (isPass) "PASS" else "LOW"
+                            // Objective Automated Severity Badge
+                            val isHigh = morph?.calculatedSeverity?.contains("High", ignoreCase = true) == true
+                            val isMed = morph?.calculatedSeverity?.contains("Medium", ignoreCase = true) == true
+                            val sevColor = if (isAiClean) NeonEmerald else if (isHigh) LaserCrimson else if (isMed) HazardAmber else LowSeverity
+                            val sevLabel = if (isAiClean) "PASS" else if (isHigh) "HIGH" else if (isMed) "MEDIUM" else "LOW"
 
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
@@ -606,25 +609,45 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                                             color = sevColor,
                                         ) {}
                                         Text(
-                                            if (isPass) "STATUS: PASS" else "AUTOMATED SEVERITY: $sevLabel",
+                                            if (isAiClean) "STATUS: PASS" else "● FLAGGED: $sevLabel",
                                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                             color = sevColor,
                                         )
                                     }
-                                    if (isPass) {
+                                    if (isAiClean) {
                                         Text(
                                             "Clear for Production",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = sevColor.copy(alpha = 0.85f),
                                         )
                                     } else {
-                                        analysisResult?.morphology?.let { morph ->
-                                            Text(
-                                                "${String.format(Locale.US, "%.1f", morph.defectAreaPercent)}% surface density",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = sevColor.copy(alpha = 0.85f),
-                                            )
-                                        }
+                                        Text(
+                                            "${String.format(Locale.US, "%.1f", areaPct)}% surface density",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = sevColor.copy(alpha = 0.85f),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Display clear Inspector Override notice if human disposition differs from AI detection
+                        if (!isAiClean && operatorIsPass) {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                color = NeonEmerald.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, NeonEmerald),
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Surface(modifier = Modifier.size(8.dp), shape = CircleShape, color = NeonEmerald) {}
+                                    Column {
+                                        Text("OPERATOR DISPOSITION: ACCEPTED / PASS (MANUAL OVERRIDE)", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = NeonEmerald)
+                                        Text("Inspector verified part tolerance and authorized clearance for assembly despite AI defect warning.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                             }
@@ -759,13 +782,13 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                         HorizontalDivider(color = PrecisionBorder)
 
                         // Actionable Industrial Recommendations
-                        val effectiveGuidanceLabel = if (isManualPass) "no_defect" else result
+                        val isDispositionPass = isAiClean || operatorIsPass
                         Text(
-                            if (isManualPass) "Actionable Guidance · Part Clearance SOP" else "Actionable Guidance · Defect Response SOP",
+                            if (isDispositionPass) "Actionable Guidance · Part Clearance SOP" else "Actionable Guidance · Defect Response SOP",
                             style = MaterialTheme.typography.titleMedium,
-                            color = if (isManualPass) NeonEmerald else Color.White,
+                            color = if (isDispositionPass) NeonEmerald else Color.White,
                         )
-                        checklistFor(effectiveGuidanceLabel).forEachIndexed { index, item ->
+                        checklistFor(if (isDispositionPass) "clean" else result).forEachIndexed { index, item ->
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(10.dp),
@@ -779,13 +802,13 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(4.dp),
-                                        color = (if (isManualPass) NeonEmerald else ElectricCyan).copy(alpha = 0.15f),
+                                        color = (if (isDispositionPass) NeonEmerald else ElectricCyan).copy(alpha = 0.15f),
                                     ) {
                                         Text(
                                             String.format(Locale.US, "%02d", index + 1),
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = if (isManualPass) NeonEmerald else ElectricCyan,
+                                            color = if (isDispositionPass) NeonEmerald else ElectricCyan,
                                         )
                                     }
                                     Text(item, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = Color(0xFFDCE6F2))
@@ -803,15 +826,16 @@ private fun InspectionHomeScreen(initialUri: Uri? = null) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         val rubric = severityRubricFor(result)
-                        SeverityChoice("Pass / No Defect", "Specimen is clear of surface flaws; meets tolerance for release to production (Green Tag).", isManualPass, NeonEmerald) { saveOperatorSeverity("Pass") }
-                        SeverityChoice("Low Severity", rubric.low, !isManualPass && operatorSeverity == "Low", LowSeverity) { saveOperatorSeverity("Low") }
-                        SeverityChoice("Medium Severity", rubric.medium, !isManualPass && operatorSeverity == "Medium", MediumSeverity) { saveOperatorSeverity("Medium") }
-                        SeverityChoice("High Severity", rubric.high, !isManualPass && operatorSeverity == "High", HighSeverity) { saveOperatorSeverity("High") }
+                        val isPassSelected = operatorIsPass || (operatorSeverity == null && isAiClean)
+                        SeverityChoice("Pass / No Defect", "Specimen is clear of surface flaws; meets tolerance for release to production (Green Tag).", isPassSelected, NeonEmerald) { saveOperatorSeverity("Pass") }
+                        SeverityChoice("Low Severity", rubric.low, !isPassSelected && (operatorSeverity == "Low" || (operatorSeverity == null && morph?.calculatedSeverity?.contains("Low", ignoreCase = true) == true)), LowSeverity) { saveOperatorSeverity("Low") }
+                        SeverityChoice("Medium Severity", rubric.medium, !isPassSelected && (operatorSeverity == "Medium" || (operatorSeverity == null && morph?.calculatedSeverity?.contains("Medium", ignoreCase = true) == true)), MediumSeverity) { saveOperatorSeverity("Medium") }
+                        SeverityChoice("High Severity", rubric.high, !isPassSelected && (operatorSeverity == "High" || (operatorSeverity == null && morph?.calculatedSeverity?.contains("High", ignoreCase = true) == true)), HighSeverity) { saveOperatorSeverity("High") }
                         Text(
-                            if (isManualPass) "Active Status: RELEASE TO PRODUCTION (Green Tag Clearance)"
-                            else operatorSeverity?.let { "Recorded Override: $it" } ?: "Active Status: Using Automated Severity (${analysisResult?.morphology?.calculatedSeverity ?: "CALCULATING"})",
+                            if (isPassSelected) "Active Status: RELEASE TO PRODUCTION (Green Tag Clearance)"
+                            else operatorSeverity?.let { "Recorded Override: $it" } ?: "Active Status: FLAGGED · Using Automated Severity (${morph?.calculatedSeverity ?: "CALCULATING"})",
                             style = MaterialTheme.typography.labelMedium,
-                            color = if (isManualPass) NeonEmerald else if (operatorSeverity != null) ElectricCyan else NeonEmerald,
+                            color = if (isPassSelected) NeonEmerald else if (operatorSeverity != null) ElectricCyan else LaserCrimson,
                         )
                     }
                 }
